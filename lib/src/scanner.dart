@@ -8,18 +8,48 @@ import 'package:chest/src/options.dart';
 
 class Scanner {
 
+  //////////////////////////////////////////////////////////////////////////////
+
   final Options _options;
 
+  late final String _skipPlain;
+  late final RegExp _skipRegex;
+
+  late final String _takePlain;
+  late final RegExp _takeRegex;
+
+  late final bool _isSkipPlain;
+  late final bool _isSkipPlainCaseSensitive;
+  late final bool _isSkipRegex;
+
+  late final bool _isTakePlain;
+  late final bool _isTakePlainCaseSensitive;
+  late final bool _isTakeRegex;
+
   //////////////////////////////////////////////////////////////////////////////
 
-  Scanner(this._options);
+  Scanner(this._options) {
+    _skipPlain = _options.skipTextPlain.substring(1);
+    _skipRegex = _options.skipTextRegex;
+
+    _takePlain = _options.takeTextPlain.substring(1);
+    _takeRegex = _options.takeTextRegex;
+
+    _isSkipPlain = _skipPlain.isNotEmpty;
+    _isSkipPlainCaseSensitive = (_options.skipTextPlain[0] == Options.charSensitive);
+    _isSkipRegex = _skipRegex.pattern.isNotEmpty;
+
+    _isTakePlain = _takePlain.isNotEmpty;
+    _isTakePlainCaseSensitive = (_options.takeTextPlain[0] == Options.charSensitive);
+    _isTakeRegex = _takeRegex.pattern.isNotEmpty;
+  }
 
   //////////////////////////////////////////////////////////////////////////////
 
-  List<String> exec() {
+  void exec() {
     var take = _options.take;
 
-    if (_options.isTakeStdin) {
+    if (_options.isTakeFilesFromStdin) {
       execEachFileFromStdin();
     }
     else if (take == null) {
@@ -33,11 +63,6 @@ class Scanner {
   //////////////////////////////////////////////////////////////////////////////
 
   void execContentFromStdin() {
-    var plain = _options.plain;
-    var regex = _options.regex;
-
-    var isPlain = plain.isEmpty;
-
     for (; ;) {
       var line = stdin.readLineSync(retainNewlines: false)?.trim();
 
@@ -120,24 +145,42 @@ class Scanner {
 
   //////////////////////////////////////////////////////////////////////////////
 
-  void execLine(String line, String plain, RegExp? regex, bool isCaseSensitve) {
-    if (plain.isNotEmpty) {
-      if (isCaseSensitve) {
-        if (!line.contains(plain)) {
-          return;
-        }
+  bool execLine(String line) {
+    var lineLC = (
+      ( _isTakePlain && ! _isTakePlainCaseSensitive) || (! _isTakePlain && !_takeRegex.isCaseSensitive) ||
+      (_isSkipPlain && !_isSkipPlainCaseSensitive) || (!_isSkipPlain && !_skipRegex.isCaseSensitive) ?
+        line.toLowerCase() : ''
+    );
+
+    if (_isTakePlain) {
+      if (_isTakePlainCaseSensitive && !line.contains(_takePlain)) {
+        return false;
       }
-      else {
-        if (!line.toLowerCase().contains(plain)) {
-          return;
-        }
-      }
-    }
-    else if (regex != null) {
-      if (!regex.hasMatch(line)) {
-        return;
+      if (!_isTakePlainCaseSensitive && !lineLC.contains(_takePlain)) {
+        return false;
       }
     }
+    else {
+      if (_isTakeRegex && !_takeRegex.hasMatch(_takeRegex.isCaseSensitive ? line : lineLC)) {
+        return false;
+      }
+    }
+    if (_isSkipPlain) {
+      if (_isSkipPlainCaseSensitive && line.contains(_skipPlain)) {
+        return false;
+      }
+      if (!_isSkipPlainCaseSensitive && lineLC.contains(_skipPlain)) {
+        return false;
+      }
+    }
+    else
+    {
+      if (_isSkipRegex && _skipRegex.hasMatch(_skipRegex.isCaseSensitive ? line : lineLC)) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   //////////////////////////////////////////////////////////////////////////////

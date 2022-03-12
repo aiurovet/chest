@@ -17,6 +17,10 @@ class Options {
 
   //////////////////////////////////////////////////////////////////////////////
 
+  static final _emptyRegex = RegExp('');
+
+  //////////////////////////////////////////////////////////////////////////////
+
   static final Map<String, Object?> optDir = {
     'name': 'dir',
     'abbr': 'd',
@@ -24,33 +28,11 @@ class Options {
     'valueHelp': 'DIR',
     'defaultsTo': null,
   };
-  static final Map<String, Object?> optPlain = {
-    'name': 'plain',
-    'abbr': 'p',
-    'help': 'filter the content by case-sensitive plain text',
-    'valueHelp': 'REGEX',
-    'defaultsTo': null,
-  };
-  static final Map<String, Object?> optPlainNoCase = {
-    'name': 'iplain',
-    'abbr': 'P',
-    'help': 'filter the content by case-insensitive plain text',
-    'valueHelp': 'REGEX',
-    'defaultsTo': null,
-  };
-  static final Map<String, Object?> optRegex = {
-    'name': 'regex',
-    'abbr': 'r',
-    'help': 'filter the content by case-sensitive regular expression',
-    'valueHelp': 'REGEX',
-    'defaultsTo': null,
-  };
-  static final Map<String, Object?> optRegexNoCase = {
-    'name': 'iregex',
-    'abbr': 'R',
-    'help': 'filter the content by case-insensitive regular expression',
-    'valueHelp': 'REGEX',
-    'defaultsTo': null,
+  static final Map<String, Object?> optHelp = {
+    'name': 'help',
+    'abbr': 'h',
+    'help': 'this help screen',
+    'negatable': false,
   };
   static final Map<String, Object?> optMax = {
     'name': 'max',
@@ -66,44 +48,106 @@ class Options {
     'valueHelp': 'INT',
     'defaultsTo': null,
   };
-  static final Map<String, Object?> optHelp = {
-    'name': 'help',
-    'abbr': 'h',
-    'help': 'this help screen',
-    'negatable': false,
+  static final Map<String, Object?> optTakeTextPlain = {
+    'name': 'plain',
+    'abbr': 'p',
+    'help': 'print lines matching plain text, case-sensitive',
+    'valueHelp': 'TEXT',
+    'defaultsTo': null,
+  };
+  static final Map<String, Object?> optTakeTextPlainNoCase = {
+    'name': 'iplain',
+    'abbr': 'P',
+    'help': 'print lines matching plain text, case-insensitive',
+    'valueHelp': 'TEXT',
+    'defaultsTo': null,
   };
   static final Map<String, Object?> optQuiet = {
     'name': 'quiet',
     'abbr': 'q',
-    'help': 'quiet mode (no output, same as verbosity 0)',
+    'help': 'quiet mode (no output, same as verbosity 0 or quiet)',
     'negatable': false,
   };
-  static final Map<String, Object?> optSkip = {
+  static final Map<String, Object?> optSkipFileGlob = {
     'name': 'skip',
     'abbr': 's',
     'help': 'exclude filename(s) defined by glob pattern',
     'valueHelp': 'GLOB',
     'defaultsTo': null,
   };
-  static final Map<String, Object?> optSkipNoCase = {
+  static final Map<String, Object?> optSkipFileGlobNoCase = {
     'name': 'iskip',
     'abbr': 'S',
     'help': 'exclude filename(s) defined by case-insensitive glob pattern',
     'valueHelp': 'GLOB',
     'defaultsTo': null,
   };
-  static final Map<String, Object?> optTake = {
+  static final Map<String, Object?> optSkipTextPlain = {
+    'name': 'noplain',
+    'abbr': 'a',
+    'help': 'print lines not matching plain text, case-sensitive',
+    'valueHelp': 'TEXT',
+    'defaultsTo': null,
+  };
+  static final Map<String, Object?> optSkipTextPlainNoCase = {
+    'name': 'inoplain',
+    'abbr': 'A',
+    'help': 'print lines not matching plain text, case-insensitive',
+    'valueHelp': 'TEXT',
+    'defaultsTo': null,
+  };
+  static final Map<String, Object?> optSkipTextPlainNoCase2 = {
+    'name': 'noiplain',
+    'help': 'same as inoplain',
+    'valueHelp': 'TEXT',
+    'defaultsTo': null,
+  };
+  static final Map<String, Object?> optSkipTextRegex = {
+    'name': 'noregex',
+    'abbr': 'n',
+    'help': 'print lines not matching regex, case-sensitive',
+    'valueHelp': 'REGEX',
+    'defaultsTo': null,
+  };
+  static final Map<String, Object?> optSkipTextRegexNoCase = {
+    'name': 'inoregex',
+    'abbr': 'N',
+    'help': 'print lines not matching regex, case-insensitive',
+    'valueHelp': 'REGEX',
+    'defaultsTo': null,
+  };
+  static final Map<String, Object?> optSkipTextRegexNoCase2 = {
+    'name': 'noiregex',
+    'help': 'same as inoregex',
+    'valueHelp': 'REGEX',
+    'defaultsTo': null,
+  };
+  static final Map<String, Object?> optTakeFileGlob = {
     'name': 'take',
     'abbr': 't',
-    'help': 'include filename(s) defined by glob pattern; use "-" (dash) to get those from ${StringExt.stdinDisplay}',
+    'help': 'include filename(s) defined by glob pattern',
     'valueHelp': 'GLOB',
     'defaultsTo': null,
   };
-  static final Map<String, Object?> optTakeNoCase = {
+  static final Map<String, Object?> optTakeFileGlobNoCase = {
     'name': 'itake',
     'abbr': 'T',
-    'help': 'include filename(s) defined by case-insensitive glob pattern, use "-" (dash) to get those from ${StringExt.stdinDisplay}',
+    'help': 'include filename(s) defined by case-insensitive glob pattern',
     'valueHelp': 'GLOB',
+    'defaultsTo': null,
+  };
+  static final Map<String, Object?> optTakeTextRegex = {
+    'name': 'regex',
+    'abbr': 'r',
+    'help': 'print lines matching regex, case-sensitive',
+    'valueHelp': 'REGEX',
+    'defaultsTo': null,
+  };
+  static final Map<String, Object?> optTakeTextRegexNoCase = {
+    'name': 'iregex',
+    'abbr': 'R',
+    'help': 'print lines matching regex, case-insensitive',
+    'valueHelp': 'REGEX',
     'defaultsTo': null,
   };
   static final Map<String, Object?> optVerbosity = {
@@ -117,20 +161,23 @@ defaults to "${Logger.levels[Logger.levelDefault]}"''',
 
   //////////////////////////////////////////////////////////////////////////////
 
-  String _plain = '';
-  String get plain => _plain;
+  static const String charInsensitive = 'i';
+  static const String charSensitive = ' ';
 
-  RegExp? _regex;
-  RegExp? get regex => _regex;
+  String _skipTextPlain = '';
+  String get skipTextPlain => _skipTextPlain;
 
-  bool _isPlainCaseSensitive = true;
-  bool get isPlainCaseSensitive => _isPlainCaseSensitive;
+  RegExp _skipTextRegex = _emptyRegex;
+  RegExp get skipTextRegex => _skipTextRegex;
 
-  bool _isRegexCaseSensitive = true;
-  bool get isRegexCaseSensitive => _isRegexCaseSensitive;
+  String _takeTextPlain = '';
+  String get takeTextPlain => _takeTextPlain;
 
-  bool _isTakeStdin = false;
-  bool get isTakeStdin => _isTakeStdin;
+  RegExp _takeTextRegex = _emptyRegex;
+  RegExp get takeTextRegex => _takeTextRegex;
+
+  bool _isTakeFilesFromStdin = false;
+  bool get isTakeFilesFromStdin => _isTakeFilesFromStdin;
 
   int _max = -1;
   int get max => _max;
@@ -183,6 +230,16 @@ defaults to "${Logger.levels[Logger.levelDefault]}"''',
 
   //////////////////////////////////////////////////////////////////////////////
 
+  static void addOptions(ArgParser parser, Map<String, Object?> option1, Map<String, Object?> option2, void Function(String?)? callback) {
+    addOption(parser, option1, callback);
+
+    if (option2 != option1) {
+      addOption(parser, option2, callback);
+    }
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+
   void parseArgs(List<String> args) {
     var dirName = '';
     var errMsg = '';
@@ -196,56 +253,58 @@ defaults to "${Logger.levels[Logger.levelDefault]}"''',
       }
     });
     addOption(parser, optDir, (value) {
-      dirName = _getString(value);
-    });
-    addOption(parser, optPlain, (value) {
-      _isPlainCaseSensitive = false;
-      _plain = _getString(value);
-    });
-    addOption(parser, optPlainNoCase, (value) {
-      _isPlainCaseSensitive = true;
-      _plain = _getString(value);
-    });
-    addOption(parser, optRegex, (value) {
-      _isRegexCaseSensitive = false;
-      _regex = (value == null ? null : RegExp(value));
-    });
-    addOption(parser, optRegexNoCase, (value) {
-      _isRegexCaseSensitive = true;
-      _regex = (value == null ? null : RegExp(value));
-    });
-    addOption(parser, optMax, (value) {
-      _max = _getInt(value, defValue: _max);
+      if (value != null) {
+        dirName = _getString(value);
+      }
     });
     addOption(parser, optMin, (value) {
       _min = _getInt(value, defValue: _min);
+    });
+    addOption(parser, optMax, (value) {
+      _max = _getInt(value, defValue: _max);
     });
     addFlag(parser, optQuiet, (value) {
       if (value) {
         _logger.level = Logger.levelSilent;
       }
     });
-    addOption(parser, optSkip, (value) {
-      if (value != null) {
-        _skip = Glob(value);
-      }
+    addOption(parser, optTakeFileGlob, (value) {
+      _isTakeFilesFromStdin = (value == StringExt.stdinPath);
+      _take = (_isTakeFilesFromStdin || (value == null) ? null : Glob(value));
     });
-    addOption(parser, optSkipNoCase, (value) {
-      if (value != null) {
-        _skip = Glob(value, caseSensitive: false);
-      }
+    addOption(parser, optTakeFileGlobNoCase, (value) {
+      _isTakeFilesFromStdin = (value == StringExt.stdinPath);
+      _take = (_isTakeFilesFromStdin || (value == null) ? null : Glob(value, caseSensitive: false));
     });
-    addOption(parser, optTake, (value) {
-      if (value != null) {
-        _isTakeStdin = (value == StringExt.stdinPath);
-        _take = (_isTakeStdin ? null : Glob(value));
-      }
+    addOption(parser, optSkipFileGlob, (value) {
+      _skip = (value == null ? null : Glob(value));
     });
-    addOption(parser, optTakeNoCase, (value) {
-      if (value != null) {
-        _isTakeStdin = (value == StringExt.stdinPath);
-        _take = (_isTakeStdin ? null : Glob(value, caseSensitive: false));
-      }
+    addOption(parser, optSkipFileGlobNoCase, (value) {
+      _skip = (value == null ? null : Glob(value, caseSensitive: false));
+    });
+    addOption(parser, optTakeTextPlain, (value) {
+      _takeTextPlain = _getString(value, isCaseSensitive: true);
+    });
+    addOption(parser, optTakeTextPlainNoCase, (value) {
+      _takeTextPlain = _getString(value, isCaseSensitive: false).toLowerCase();
+    });
+    addOption(parser, optTakeTextRegex, (value) {
+      _takeTextRegex = (value == null ? _emptyRegex : RegExp(value, caseSensitive: true));
+    });
+    addOption(parser, optTakeTextRegexNoCase, (value) {
+      _takeTextRegex = (value == null ? _emptyRegex : RegExp(value, caseSensitive: false));
+    });
+    addOption(parser, optSkipTextPlain, (value) {
+      _skipTextPlain = _getString(value, isCaseSensitive: true);
+    });
+    addOptions(parser, optSkipTextPlainNoCase, optSkipTextPlainNoCase2, (value) {
+      _skipTextPlain = _getString(value, isCaseSensitive: false).toLowerCase();
+    });
+    addOption(parser, optSkipTextRegex, (value) {
+      _skipTextRegex = (value == null ? _emptyRegex : RegExp(value, caseSensitive: true));
+    });
+    addOptions(parser, optSkipTextRegexNoCase, optSkipTextRegexNoCase2, (value) {
+      _skipTextRegex = (value == null ? _emptyRegex : RegExp(value, caseSensitive: false));
     });
     addOption(parser, optVerbosity, (value) {
       if (value != null) {
@@ -265,10 +324,10 @@ defaults to "${Logger.levels[Logger.levelDefault]}"''',
       var result = parser.parse(args);
 
       if (!isHelp) {
-        var plainArgs = result.rest;
+        var rest = result.rest;
 
-        if (plainArgs.isNotEmpty) {
-          errMsg = 'Plain arguments are not expected: $plainArgs';
+        if (rest.isNotEmpty) {
+          errMsg = 'Plain arguments are not expected: $rest';
           isHelp = true;
         }
 
@@ -290,9 +349,9 @@ defaults to "${Logger.levels[Logger.levelDefault]}"''',
   void printUsage(ArgParser parser, {String? error}) {
     if (!_logger.isSilent) {
       stderr.writeln('''
-$appName $appVersion (C) Alexander Iurovetski 2020 - 2021
+$appName $appVersion (c) Alexander Iurovetski 2022
 
-A command-line utility to eXpand text content aNd to eXecute external utilities.
+Check Strings: a command-line utility to read text from files or ${StringExt.stdinDisplay} and filter the content based on plain text or regular expression, then, optionally, check that the number of matching lines is within the specified range
 
 USAGE:
 
@@ -300,9 +359,8 @@ $appName [OPTIONS]
 
 ${parser.usage}
 
-If none of -t, --take, -T, --itake options specified, read content from ${StringExt.stdinDisplay}
-
-For more details, see README.md
+If the value of -t/--take or -T/--itake option is ${StringExt.stdinPath}, treat ${StringExt.stdinDisplay} as the list of files to process
+If neither -t/--take nor -T/--itake option specified, read and filter text from ${StringExt.stdinDisplay}
 '''
       );
     }
@@ -342,8 +400,8 @@ For more details, see README.md
 
   //////////////////////////////////////////////////////////////////////////////
 
-  String _getString(String? value, {String? defValue}) =>
-    value ?? defValue ?? '';
+  String _getString(String? value, {bool? isCaseSensitive, String? defValue}) =>
+    (isCaseSensitive == null ? '' : isCaseSensitive ? ' ' : 'i') + (value ?? defValue ?? '');
 
   //////////////////////////////////////////////////////////////////////////////
 }

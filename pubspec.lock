@@ -16,7 +16,7 @@ packages:
     source: hosted
     version: "3.3.1"
   args:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: args
       url: "https://pub.dartlang.org"
@@ -72,7 +72,7 @@ packages:
     source: hosted
     version: "3.0.1"
   file:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: file
       url: "https://pub.dartlang.org"
@@ -86,7 +86,7 @@ packages:
     source: hosted
     version: "2.1.2"
   glob:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: glob
       url: "https://pub.dartlang.org"
@@ -170,7 +170,7 @@ packages:
     source: hosted
     version: "2.0.2"
   path:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: path
       url: "https://pub.dartlang.org"
