@@ -1,0 +1,33 @@
+import 'dart:core';
+
+
+extension StringExt on String {
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Constants
+  //////////////////////////////////////////////////////////////////////////////
+
+  static const int eotCode = 4;
+  static final String eot = String.fromCharCode(StringExt.eotCode);
+  static const String newLine = '\n';
+
+  static const String stdinDisplay = '<stdin>';
+  static const String stdinPath = '-';
+
+  static const String stdoutDisplay = '<stdout>';
+  static const String stdoutPath = StringExt.stdinPath;
+
+  static const String unknown = '<unknown>';
+
+  //////////////////////////////////////////////////////////////////////////////
+
+  bool isBlank() =>
+    trim().isEmpty; // faster than regex
+
+  //////////////////////////////////////////////////////////////////////////////
+
+  bool parseBool() =>
+    (toLowerCase() == 'true');
+
+  //////////////////////////////////////////////////////////////////////////////
+}
