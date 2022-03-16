@@ -5,6 +5,7 @@
   "version": "0.2.0",
   "configurations": [
     { "name": "Ad-hoc", "request": "launch", "type": "dart",
-      "args": [ "-d", "/home/ra/Projects", "-P", "echo", "-T", "*.bat", ] },
+      "args": [ "-dir", "/home/ra/Projects", "-plain", "echo", "-take", "**", "-skip", "**.{bat,json}", "-rskip", "\\/\\.",
+                "-verbosity", "normal", "--nocontent" ] },
   ]
 }

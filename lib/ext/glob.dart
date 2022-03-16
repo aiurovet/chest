@@ -1,8 +1,8 @@
 import 'dart:core';
 import 'package:file/file.dart';
 import 'package:glob/glob.dart';
-import 'package:chest/src/ext/path.dart';
-import 'package:chest/src/ext/string.dart';
+import 'package:chest/ext/path.dart';
+import 'package:chest/ext/string.dart';
 
 extension GlobExt on Glob {
 
@@ -32,32 +32,6 @@ extension GlobExt on Glob {
     }
 
     return false;
-  }
-
-  //////////////////////////////////////////////////////////////////////////////
-
-  List<FileSystemEntity> listSync({String? root, bool? recursive, bool followLinks = false}) {
-    var that = this;
-
-    var fullRoot = (root == null ?
-      Path.fileSystem.currentDirectory.path :
-      Path.getFullPath(root)
-    );
-
-    var lst = Path.fileSystem
-      .directory(fullRoot)
-      .listSync(
-        recursive: recursive ?? isRecursive(pattern),
-        followLinks: followLinks
-      )
-      .where((x) {
-        var hasMatch = that.matches(Path.toPosix(Path.relative(x.path, from: fullRoot)));
-        return hasMatch;
-      })
-      .toList()
-    ;
-
-    return lst;
   }
 
   //////////////////////////////////////////////////////////////////////////////

@@ -8,9 +8,9 @@ environment:
 
 
 dependencies:
-  args: ^2.3.0
   file: ^6.1.2
   glob: ^2.0.2
+  parse_args: ^0.1.0
   path: ^1.8.1
 
 dev_dependencies:

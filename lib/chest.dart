@@ -1,29 +1,28 @@
 import 'dart:io';
 
-import 'package:chest/src/ext/path.dart';
-import 'package:chest/src/ext/string.dart';
-import 'package:chest/src/logger.dart';
-import 'package:chest/src/options.dart';
+import 'package:chest/ext/path.dart';
+import 'package:chest/ext/string.dart';
+import 'package:chest/logger.dart';
+import 'package:chest/options.dart';
+import 'package:chest/scanner.dart';
 
 class Chest {
 
   //////////////////////////////////////////////////////////////////////////////
 
-  Logger _logger = Logger();
-  Options options = Options();
+  final Logger logger;
+  final Options options;
+  final Scanner scanner;
 
   //////////////////////////////////////////////////////////////////////////////
 
-  Chest({Logger? logger}) {
-    if (logger != null) {
-      _logger = logger;
-    }
-  }
+  Chest(this.scanner, this.options, this.logger);
 
   //////////////////////////////////////////////////////////////////////////////
 
-  void exec(List<String> args) {
-    options.parseArgs(args);
+  Future exec(List<String> args) async {
+    options.parseAppArgs(args);
+    await scanner.exec();
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -34,13 +33,13 @@ class Chest {
 
   //////////////////////////////////////////////////////////////////////////////
 
-  static void main(List<String> args) {
+  static Future main(List<String> args, Scanner scanner, Options options, Logger logger) async {
     var isOK = false;
-    var app = Chest();
+    var app = Chest(scanner, options, logger);
 
     try {
       Path.init(Path.localFileSystem);
-      app.exec(args);
+      await app.exec(args);
       isOK = true;
     }
     on Error catch (e, stackTrace) {
@@ -63,20 +62,14 @@ class Chest {
       var errDecorRE = RegExp(r'^(Exception[\:\s]*)+', caseSensitive: false);
       errMsg = errMsg.replaceFirst(errDecorRE, '');
 
-      if (errMsg.isBlank()) {
-        return false;
-      }
-      else if (errMsg == Options.optHelp['name']) {
-        return true;
-      }
-      else if (_logger.isSilent) {
+      if (errMsg.isBlank() || logger.isSilent) {
         return false;
       }
 
-      var errDtl = (_logger.level >= Logger.levelDebug ? '\n\n' + stackTrace.toString() : '');
+      var errDtl = (logger.level >= Logger.levelDebug ? '\n\n' + stackTrace.toString() : '');
       errMsg = '\n*** ERROR: $errMsg$errDtl\n';
 
-      _logger.error(errMsg);
+      logger.error(errMsg);
 
       return false;
     }

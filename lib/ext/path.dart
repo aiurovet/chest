@@ -13,6 +13,10 @@ class Path {
   //////////////////////////////////////////////////////////////////////////////
 
   static String separator = '';
+  static String separatorPosix = r'/';
+  static String separatorPosixEscaped = r'\/';
+  static String separatorWindows = r'\';
+  static String separatorWindowsEscaped = r'\\';
   static String driveSeparator = '';
   static bool isCaseSensitive = false;
   static bool isWindowsFS = false;
@@ -25,7 +29,7 @@ class Path {
       return '';
     }
 
-    return path.trim().replaceAll(isWindowsFS ? r'/' : r'\', separator);
+    return path.trim().replaceAll(isWindowsFS ? separatorPosix : separatorWindows, separator);
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -165,7 +169,8 @@ class Path {
 
   //////////////////////////////////////////////////////////////////////////////
 
-  static String toPosix(String path) => path.replaceAll('\\', '/');
+  static String toPosix(String path) => path.replaceAll(separatorWindows, separatorPosix);
+  static String toPosixEscaped(String path) => path.replaceAll(separatorWindowsEscaped, separatorPosixEscaped);
 
   //////////////////////////////////////////////////////////////////////////////
 
