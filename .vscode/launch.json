@@ -5,7 +5,12 @@
   "version": "0.2.0",
   "configurations": [
     { "name": "Ad-hoc", "request": "launch", "type": "dart",
-      "args": [ "-dir", "/home/ra/Projects", "-plain", "echo", "-take", "**", "-skip", "**.{bat,json}", "-rskip", "\\/\\.",
-                "-verbosity", "normal", "--nocontent" ] },
+      "args": [
+        "-dir", "/home/ra/Projects",
+        "-itext", "!echo",
+        "-files", "**.bat",
+        "-equ", "694",
+      ]
+    },
   ]
 }
