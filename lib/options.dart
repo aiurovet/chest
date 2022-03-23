@@ -17,52 +17,54 @@ class Options {
 
   //////////////////////////////////////////////////////////////////////////////
 
-  static const String charOption = '-';
-  static const String endOption = '--';
-
   static const String charInsensitive = 'i';
   static const String charSensitive = ' ';
 
+  static const String charNeg = '!';
+  static const String charNegEscaped = '$charNeg$charNeg';
+
+  static final RegExp rexNeg = RegExp('^([$charNeg]+)');
+
   //////////////////////////////////////////////////////////////////////////////
 
-  var _isCount = false;
   get isCount => _isCount;
+  var _isCount = false;
 
-  var _isPathsOnly = false;
   get isPathsOnly => _isPathsOnly;
+  var _isPathsOnly = false;
 
-  var _isTakeFileListFromStdin = false;
   get isTakeFileListFromStdin => _isTakeFileListFromStdin;
+  var _isTakeFileListFromStdin = false;
 
-  int _max = -1;
   int get max => _max;
+  int _max = -1;
 
-  int _min = 0;
   int get min => _min;
+  int _min = 0;
 
-  final _skipFileGlobList = <Glob>[];
   get skipFileGlobList => _skipFileGlobList;
+  final _skipFileGlobList = <Glob>[];
 
-  final _skipFileRegexList = <RegExp>[];
   get skipFileRegexList => _skipFileRegexList;
+  final _skipFileRegexList = <RegExp>[];
 
-  final _skipTextPlainList = <String>[];
   get skipTextPlainList => _skipTextPlainList;
+  final _skipTextPlainList = <String>[];
 
-  final _skipTextRegexList = <RegExp>[];
   get skipTextRegexList => _skipTextRegexList;
+  final _skipTextRegexList = <RegExp>[];
 
-  final _takeFileGlobList = <Glob>[];
   get takeFileGlobList => _takeFileGlobList;
+  final _takeFileGlobList = <Glob>[];
 
-  final _takeFileRegexList = <RegExp>[];
   get takeFileRegexList => _takeFileRegexList;
+  final _takeFileRegexList = <RegExp>[];
 
-  final _takeTextPlainList = <String>[];
   get takeTextPlainList => _takeTextPlainList;
+  final _takeTextPlainList = <String>[];
 
-  final _takeTextRegexList = <RegExp>[];
   get takeTextRegexList => _takeTextRegexList;
+  final _takeTextRegexList = <RegExp>[];
 
   //////////////////////////////////////////////////////////////////////////////
 
@@ -78,139 +80,108 @@ class Options {
 
   //////////////////////////////////////////////////////////////////////////////
 
-  Future parseAppArgs(List<String> args) async {
+  Future parse(List<String> args) async {
     var argCount = args.length;
 
     if (argCount <= 0) {
       printUsage();
     }
 
-    parseLogArgs(args);
-
     var dirName = '';
 
-    parseArgs(args, (optName, valueList) {
-      if (_logger.isDebug) {
-        _logger.debug('Option values: $valueList');
+    var optDefs = '''
+      +|?,h,help|quiet|verbose|d,dir:|equ:i|max:i|min:i|nocontent|text::|itext::
+       |regex::|iregex::|files::|ifiles::|rfiles::|rifiles,irfiles::''';
+
+    parseArgs(optDefs, args, (isFirstRun, optName, values) {
+      // Show details when not on the first run
+      //
+      if (!isFirstRun) {
+        if (_logger.isDebug) {
+          _logger.debug('Option "$optName"${values.isEmpty ? '' : ': $values'}');
+        }
+        return;
       }
 
+      // Assign option values
+      //
       switch (optName) {
-        case '?':
         case 'help':
           printUsage();
 
-        // Initial location
+        // Logging flags
+        //
+        case 'quiet':
+          _logger.level = Logger.levelSilent;
+          return;
+        case 'verbose':
+          _logger.level = Logger.levelDebug;
+          return;
 
+        // Directory to start in
+        //
         case 'dir':
-          dirName = _getString(optName, valueList);
-          break;
+          dirName = values[0];
+          return;
 
-        // Expected count range
-
+        // Expected match count boundaries
+        //
+        case 'equ':
+          _isCount = true;
+          _max = values[0];
+          _min = _max;
+          return;
         case 'max':
           _isCount = true;
-          _max = _getInt(optName, valueList, defValue: _max);
-          break;
+          _max = values[0];
+          return;
         case 'min':
           _isCount = true;
-          _min = _getInt(optName, valueList, defValue: _min);
-          break;
+          _min = values[0];
+          return;
 
-        // Output style
-
+        // Type of check
+        //
         case 'nocontent':
           _isPathsOnly = true;
-          break;
-
-        // Plain take-filters for text
-
-        case 'plain':
-          _getTextPlainList(_takeTextPlainList, valueList, isCaseSensitive: true);
-          break;
-        case 'iplain':
-          _getTextPlainList(_takeTextPlainList, valueList, isCaseSensitive: false);
-          break;
+          return;
 
         // Plain skip-filters for text
-
-        case 'noplain':
-          _getTextPlainList(_skipTextPlainList, valueList, isCaseSensitive: true);
-          break;
-        case 'inoplain':
-        case 'noiplain':
-          _getTextPlainList(_skipTextPlainList, valueList, isCaseSensitive: false);
-          break;
+        //
+        case 'text':
+          _getTextPlainList(_takeTextPlainList, _skipTextPlainList, values, isCaseSensitive: true);
+          return;
+        case 'itext':
+          _getTextPlainList(_takeTextPlainList, _skipTextPlainList, values, isCaseSensitive: false);
+          return;
 
         // Regex take-filters for text
-
+        //
         case 'regex':
-          _getTextRegexList(_takeTextRegexList, valueList, isCaseSensitive: true);
-          break;
+          _getTextRegexList(_takeTextRegexList, _skipTextRegexList, values, isCaseSensitive: true);
+          return;
         case 'iregex':
-          _getTextRegexList(_takeTextRegexList, valueList, isCaseSensitive: false);
-          break;
-
-        // Regex skip-filters for text
-
-        case 'noregex':
-          _getTextRegexList(_skipTextRegexList, valueList, isCaseSensitive: true);
-          break;
-        case 'inoregex':
-        case 'noiregex':
-          _getTextRegexList(_skipTextRegexList, valueList, isCaseSensitive: false);
-          break;
+          _getTextRegexList(_takeTextRegexList, _skipTextRegexList, values, isCaseSensitive: false);
+          return;
 
         // Glob take-filters for files
-
-        case 'take':
-          _getFileGlobList(_takeFileGlobList, valueList, isTake: true);
-          break;
-        case 'itake':
-          _getFileGlobList(_takeFileGlobList, valueList, isTake: true, isCaseSensitive: false);
-          break;
+        //
+        case 'files':
+          _getFileGlobList(_takeFileGlobList, _skipFileGlobList, values, isTake: true);
+          return;
+        case 'ifiles':
+          _getFileGlobList(_takeFileGlobList, _skipFileGlobList, values, isTake: true, isCaseSensitive: false);
+          return;
 
         // Regex take-filters for files
-
-        case 'rtake':
-          _getFileRegexList(_takeFileRegexList, valueList, isTake: true);
-          break;
-        case 'irtake':
-        case 'ritake':
-          _getFileRegexList(_takeFileRegexList, valueList, isTake: true, isCaseSensitive: false);
-          break;
-
-        // Glob skip-filters for files
-
-        case 'skip':
-          _getFileGlobList(_skipFileGlobList, valueList, isTake: false);
-          break;
-        case 'iskip':
-          _getFileGlobList(_skipFileGlobList, valueList, isTake: false, isCaseSensitive: false);
-          break;
-
-        // Regex skip-filters for files
-
-        case 'rskip':
-          _getFileRegexList(_skipFileRegexList, valueList, isTake: false);
-          break;
-        case 'irskip':
-        case 'riskip':
-          _getFileRegexList(_skipFileRegexList, valueList, isTake: false, isCaseSensitive: false);
-          break;
-
-        // Logging - processed already
-
-        case 'debug':
-        case 'verbosity':
-          break;
-
-        // Bad
-
-        default:
-          printUsage('Unknown option "$optName"');
+        //
+        case 'rfiles':
+          _getFileRegexList(_takeFileRegexList, _skipFileRegexList, values, isTake: true);
+          return;
+        case 'irfiles':
+          _getFileRegexList(_takeFileRegexList, _skipFileRegexList, values, isTake: true, isCaseSensitive: false);
+          return;
       }
-
-      return true;
     });
 
     // Post-parsing
@@ -220,59 +191,43 @@ class Options {
 
   //////////////////////////////////////////////////////////////////////////////
 
-  void parseLogArgs(List<String> args) {
-    parseArgs(args, (optName, values) {
-      if (values.isNotEmpty) {
-        printUsage('Option "$optName" has unexpected value(s): $values');
-      }
-      switch (optName) {
-        case 'q':
-        case 'quiet':
-          _logger.level = Logger.levelSilent;
-          break;
-        case 'v':
-        case 'verbose':
-          _logger.level = Logger.levelDebug;
-          break;
-      }
-      return true;
-    });
-  }
-
-  //////////////////////////////////////////////////////////////////////////////
-
   Never printUsage([String? error]) {
     _logger.error('''
-$appName $appVersion (c) Alexander Iurovetski 2022
+$appName $appVersion (c) 2022 Alexander Iurovetski
 
-Check Strings: a command-line utility to read text from files or ${StringExt.stdinDisplay} and filter the content based on plain text or regular expression, then, optionally, check that the number of matching lines is within the specified range
+Check Strings: a command-line utility to read text from files or stdin and
+filter the content based on plain text or regular expression, then, optionally,
+check that the number of matching lines is within the specified range
 
 USAGE:
 
 $appName [OPTIONS]
 
--?, -h, --help         - this help screen
--d, --dir      <DIR>   - directory to start in
--m, --min      <INT>   - minimum expected number of matching lines
--M, --max      <INT>   - maximum expected number of matching lines
--p, --plain    <TEXT>  - print lines matching plain text, case-sensitive
--P, --iplain   <TEXT>  - print lines matching plain text, case-insensitive
--a, --noplain  <TEXT>  - print lines matching plain text, case-sensitive
--A, --inoplain <TEXT>  - print lines not matching plain text, case-insensitive
-    --noiplain <TEXT>  - same as --inoplain
--r, --regex    <REGEX> - print lines matching regular expression, case-sensitive
--R, --iregex   <REGEX> - print lines matching regular expression, case-insensitive
--n, --noregex  <REGEX> - print lines not matching regular expression, case-sensitive
--N, --inoregex <REGEX> - print lines not matching regular expression, case-insensitive
-    --noiregex <REGEX> - same as --inoregex
--q, --quiet            - quiet mode (no output, same as verbosity 0 or "quiet")
--t, --take     <GLOB>  - include filename(s) defined by glob pattern, OS-specific case
--T, --itake    <GLOB>  - include filename(s) defined by glob pattern, case-insensitive
--s, --skip     <GLOB>  - exclude filename(s) defined by glob pattern, OS-specific case
--S, --iskip    <GLOB>  - exclude filename(s) defined by glob pattern, case-insensitive
+-[-]help, -?, -h    - this help screen
+-[-]quiet           - no output
+-[-]verbose         - detailed output
+-[-]dir     <DIR>   - directory to start in
+-[-]equ     <INT>   - expected exact number of matching lines
+-[-]min     <INT>   - expected minimum number of matching lines
+-[-]max     <INT>   - expected maximum number of matching lines
+-[-]plain   <TEXT>  - filter lines matching or not matching plain text,
+                      case-sensitive
+-[-]iplain  <TEXT>  - filter lines matching or not matching plain text,
+                      case-insensitive
+-[-]regex   <REGEX> - filter lines matching or not matching regex,
+                      case-sensitive
+-[-]iregex  <REGEX> - filter lines matching or not matching regex,
+                      case-insensitive
+-[-]files   <GLOB>  - include or exclude filename(s) defined by glob,
+                      case-OS-specific
+-[-]ifiles  <GLOB>  - include or exclude filename(s) defined by glob,
+                      case-insensitive
 
-If the value of -t/--take or -T/--itake option is ${StringExt.stdinPath}, treat ${StringExt.stdinDisplay} as the list of files to process
-If neither -t/--take, nor -T/--itake option specified, read and filter text from ${StringExt.stdinDisplay}
+If the value of any of -[i]files is '-', read the list of files from stdin.
+If none of -[ir]files specified, read and filter text from stdin.
+
+Negation (not matching) is achieved by prepending a pattern or a plain text
+with an exclamation mark '!'. It can be escaped by doubling that: '!!'.
 '''
     );
 
@@ -310,24 +265,10 @@ If neither -t/--take, nor -T/--itake option specified, read and filter text from
 
   //////////////////////////////////////////////////////////////////////////////
 
-  int _getInt(String optName, List<String> valueList, {int defValue = 0}) =>
-    (int.tryParse(_getString(optName, valueList)) ?? defValue);
-
-  //////////////////////////////////////////////////////////////////////////////
-
-  String _getString(String optName, List<String> valueList) {
-    if (valueList.isEmpty) {
-      printUsage('Option "$optName" is expected to have a value"}');
-    }
-
-    return valueList[0];
-  }
-
-  //////////////////////////////////////////////////////////////////////////////
-
-  void _getFileGlobList(List<Glob> toList, List<String> values, {bool? isCaseSensitive, bool isTake = false}) {
+  void _getFileGlobList(List<Glob> toList, List<Glob> toNegList, List values, {bool? isCaseSensitive, bool isTake = false}) {
     for (var value in values) {
-      toList.add(Glob(value, recursive: GlobExt.isRecursive(value), caseSensitive: isCaseSensitive));
+      var info = _getNegInfo(toList, toNegList, value);
+      info[0].add(Glob(info[1], recursive: GlobExt.isRecursive(info[1]), caseSensitive: isCaseSensitive));
     }
     if (isTake) {
       _isTakeFileListFromStdin = _isFromStdin(values);
@@ -336,9 +277,10 @@ If neither -t/--take, nor -T/--itake option specified, read and filter text from
 
   //////////////////////////////////////////////////////////////////////////////
 
-  void _getFileRegexList(List<RegExp> toList, List<String> values, {bool? isCaseSensitive, bool isTake = false}) {
+  void _getFileRegexList(List<RegExp> toList, List<RegExp> toNegList, List values, {bool? isCaseSensitive, bool isTake = false}) {
     for (var value in values) {
-      toList.add(RegExp(Path.toPosixEscaped(value), caseSensitive: isCaseSensitive ?? !Path.isWindowsFS));
+      var info = _getNegInfo(toList, toNegList, value);
+      info[0].add(RegExp(Path.toPosixEscaped(info[1]), caseSensitive: isCaseSensitive ?? !Path.isWindowsFS));
     }
     if (isTake) {
       _isTakeFileListFromStdin = _isFromStdin(values);
@@ -347,23 +289,37 @@ If neither -t/--take, nor -T/--itake option specified, read and filter text from
 
   //////////////////////////////////////////////////////////////////////////////
 
-  void _getTextPlainList(List<String> toList, List<String> values, {bool isCaseSensitive = false}) {
+  List _getNegInfo(List toList, List toNegList, String value) {
+    var negPrefix = rexNeg.firstMatch(value)?.group(1) ?? '';
+    var negLen = negPrefix.length;
+
+    return [
+      ((negLen % 2) == 1 ? toNegList : toList),
+      value.substring(negLen),
+    ];
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+
+  void _getTextPlainList(List<String> toList, List<String> toNegList, List values, {bool isCaseSensitive = false}) {
     for (var value in values) {
-      toList.add((isCaseSensitive ? charSensitive : charInsensitive) + value);
+      var info = _getNegInfo(toList, toNegList, value);
+      info[0].add((isCaseSensitive ? charSensitive : charInsensitive) + info[1]);
     }
   }
 
   //////////////////////////////////////////////////////////////////////////////
 
-  void _getTextRegexList(List<RegExp> toList, List<String> values, {bool isCaseSensitive = false}) {
+  void _getTextRegexList(List<RegExp> toList, List<RegExp> toNegList, List values, {bool isCaseSensitive = false}) {
     for (var value in values) {
-      toList.add(RegExp(value, caseSensitive: isCaseSensitive));
+      var info = _getNegInfo(toList, toNegList, value);
+      info[0].add(RegExp(info[1], caseSensitive: isCaseSensitive));
     }
   }
 
   //////////////////////////////////////////////////////////////////////////////
 
-  static bool _isFromStdin(List<String> values) =>
+  static bool _isFromStdin(List values) =>
     ((values.length == 1) && (values[0] == StringExt.stdinPath));
 
   //////////////////////////////////////////////////////////////////////////////

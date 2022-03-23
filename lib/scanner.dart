@@ -39,8 +39,12 @@ class Scanner {
     if (options.isCount) {
       var isSuccess = ((count >= options.min) && ((options.max < 0) || (count <= options.max)));
 
-      var details = (options.max < 0 ? '$count (actual) >= ${options.min} (min)' :
-                                       '${options.min} (min) <= $count (actual) <= ${options.max}');
+      var isMin = (options.max < 0);
+      var isEqu = (options.max == options.min);
+
+      var details = (isMin ? '$count (actual) >= ${options.min} (min)' :
+                     isEqu ? '$count (actual) == ${options.min} (expected)' :
+                             '${options.min} (min) <= $count (actual) <= ${options.max} (max)');
 
       logger.out('${Options.appName}: ${isSuccess ? 'succeeded' : 'failed'}: $details');
     }
@@ -234,7 +238,7 @@ class Scanner {
       }
 
       var isCaseSensitive = (plain[0] == Options.charSensitive);
-      isValid = (isCaseSensitive ? line : lineLC).contains(plain);
+      isValid = (isCaseSensitive ? line : lineLC).contains(plain.substring(1));
 
       if (!isValid) {
         break;
@@ -256,7 +260,7 @@ class Scanner {
       }
 
       var isCaseSensitive = (plain[0] == Options.charSensitive);
-      isValid = !(isCaseSensitive ? line : lineLC).contains(plain);
+      isValid = !(isCaseSensitive ? line : lineLC).contains(plain.substring(1));
 
       if (!isValid) {
         break;

@@ -21,7 +21,7 @@ class Chest {
   //////////////////////////////////////////////////////////////////////////////
 
   Future exec(List<String> args) async {
-    options.parseAppArgs(args);
+    await options.parse(args);
     await scanner.exec();
   }
 
