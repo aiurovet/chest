@@ -1,0 +1,109 @@
+#!/bin/bash
+
+set -Eeo pipefail
+
+################################################################################
+# This script should be run from the project's top folder
+################################################################################
+
+PRJ="chest"
+VER="0.1.0"
+
+################################################################################
+
+echo "Switching to the top project directory"
+SCRIPT_DIR="$(dirname "${0}")"
+cd "$(dirname "${SCRIPT_DIR}")"
+TOP="${PWD}"
+
+################################################################################
+
+echo "Parsing command-line arguments (no options)"
+OS_TYPE="${1}"
+(( ${#} >= 2)) && shift 2 || shift ${#}
+
+################################################################################
+
+if [[ "${OS_TYPE}" == "" ]]; then
+  echo "Retrieving the default OS name"
+  OS_TYPE=$(uname -s)
+fi
+
+if [[ "${OS_TYPE}" =~ "darwin" ]]; then
+  OS_TYPE="macOS"
+fi
+
+OS_LOWER=$(echo "${OS_TYPE}" | tr "[:upper:]" "[:lower:]")
+
+export OS_TYPE
+echo "Running the ${OS_TYPE} build"
+
+################################################################################
+
+BIN="bin/${OS_TYPE}"
+APP="app/${OS_TYPE}"
+OUP="out/${OS_TYPE}"
+OUT="${OUP}/${PRJ}/${VER}"
+
+EXE="${BIN}/${PRJ}"
+XNX="${BIN}/xnx"
+
+PKG="${APP}/${PRJ}-${VER}-${OS_LOWER}";
+[[ "${OS_TYPE}" != "macOS" ]] && PKG="${PKG}-amd64"
+
+################################################################################
+
+if [[ ! -d "${APP}" ]]; then
+  echo "Creating the app directory \"${APP}\""
+  mkdir -p "${APP}"
+fi
+
+if [[ ! -d "${BIN}" ]]; then
+  echo "Creating the bin directory \"${BIN}\""
+  mkdir -p "${BIN}"
+fi
+
+if [[ -d "${OUP}" ]]; then
+  echo "Discarding the output parent directory \"${OUP}\""
+  rm -rf "${OUP}"
+fi
+
+echo "Creating the output directory \"${OUT}\""
+mkdir -p "${OUT}"
+
+echo "Switching to the top directory \"${TOP}\""
+cd "${TOP}"
+
+echo "Getting the latest version of the packages"
+dart pub get
+
+echo "Compiling \"${EXE}\""
+dart compile exe bin/main.dart -o "${EXE}"
+
+echo "Copying the executable, installation guide, readme, changelog and license to the output directory"
+cp -pr "${EXE}" scripts/set-as-current *.md LICENSE "${OUT}"
+
+echo "Creating the icons and moving those to the output directory"
+"${XNX}" -d "scripts/mkicons" "${PRJ}" "../../${OUT}" ${@}
+
+################################################################################
+
+echo "Creating and compressing the application package"
+"${XNX}" --move --pack "${OUP}" "${PKG}.tar.gz"
+
+if [[ -d "${OUP}" ]]; then
+  echo "Removing the output parent directory \"${OUP}\""
+  rm -rf "${OUP}"
+fi
+
+if [[ -f "${PKG}.tar" ]]; then
+  echo "Removing \"${PKG}.tar\" again"
+  rm -f "${PKG}.tar"
+fi
+
+################################################################################
+
+echo "The build successfully completed"
+exit 0
+
+################################################################################
