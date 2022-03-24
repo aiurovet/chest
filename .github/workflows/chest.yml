@@ -27,6 +27,14 @@ jobs:
 
       ################################################################################
 
+      - name: Installing ImageMagick for Windows
+        if: runner.os == 'Windows'
+        run: |
+          choco install -y imagemagick.app --no-progress
+          Get-ChildItem -Path "${env:ProgramFiles}" | Where-Object {($_.Name -Like 'ImageMagick*')} | %{$_.FullName} | Out-File -Append -FilePath $env:GITHUB_PATH -Encoding utf8
+
+      ################################################################################
+
       - name: Installing dependencies
         run: dart pub get
 
