@@ -1,85 +1,135 @@
+// Copyright (c) 2022, Alexander Iurovetski
+// All rights reserved under MIT license (see LICENSE file)
+
 import 'dart:io';
 
+import 'package:chest/register_services.dart';
+import 'package:file/file.dart';
 import 'package:glob/glob.dart';
 import 'package:parse_args/parse_args.dart';
+import 'package:thin_logger/thin_logger.dart';
 
-import 'package:chest/ext/glob.dart';
-import 'package:chest/ext/path.dart';
-import 'package:chest/ext/string.dart';
-import 'package:chest/logger.dart';
+import 'package:chest/ext/glob_ext.dart';
+import 'package:chest/ext/path_ext.dart';
 
+/// A class for command-line options
+///
 class Options {
+  /// The application name
+  ///
+  static const appName = 'chest';
+
+  /// The application version
+  ///
+  static const appVersion = '0.1.0';
+
+  /// A prefix indicating the following literal match should be case-insensitive
+  ///
+  static const charInsensitive = 'i';
+
+  /// A prefix indicating the following literal match should be case-sensitive
+  ///
+  static const charSensitive = ' ';
+
+  /// A prefix indicating the following match (literal or regex) should be negated (made the opposite)
+  ///
+  static const charNeg = '!';
+
+  /// A prefix indicating to ignore negation and treat the following character as plain
+  ///
+  static const charNegEscaped = '$charNeg$charNeg';
+
+  /// A regular expression to find negations
+  ///
+  static final rexNeg = RegExp('^([$charNeg]+)');
+
+  /// A regular expression to find numweric ranges as min..max
+  ///
+  static final rexRange = RegExp(r'\.\.+');
 
   //////////////////////////////////////////////////////////////////////////////
 
-  static const String appName = 'chest';
-  static const String appVersion = '0.1.0';
-
-  //////////////////////////////////////////////////////////////////////////////
-
-  static const String charInsensitive = 'i';
-  static const String charSensitive = ' ';
-
-  static const String charNeg = '!';
-  static const String charNegEscaped = '$charNeg$charNeg';
-
-  static final RegExp rexNeg = RegExp('^([$charNeg]+)');
-
-  //////////////////////////////////////////////////////////////////////////////
-
-  get isCount => _isCount;
+  /// A flag property indicating we just count the matches
+  ///
+  bool get isCount => _isCount;
   var _isCount = false;
 
-  get isPathsOnly => _isPathsOnly;
+  /// A flag property indicating we show the path in the output if applicable
+  ///
+  bool get isPathShown => _isPathShown;
+  var _isPathShown = true;
+
+  /// A flag property indicating we do not read or read the content
+  ///
+  bool get isPathsOnly => _isPathsOnly;
   var _isPathsOnly = false;
 
-  get isTakeFileListFromStdin => _isTakeFileListFromStdin;
+  /// A flag property indicating we get all input file paths from stdin rather than from the CLI (like xargs)
+  ///
+  bool get isTakeFileListFromStdin => _isTakeFileListFromStdin;
   var _isTakeFileListFromStdin = false;
 
+  /// A numeric property for the upper limit of matches (-1 for unlimited)
+  ///
   int get max => _max;
   int _max = -1;
 
+  /// A numeric property for the lower limit of matches
+  ///
   int get min => _min;
-  int _min = 0;
+  var _min = 0;
 
-  get skipFileGlobList => _skipFileGlobList;
+  /// Glob patterns to filter out unwanted files
+  ///
+  List<Glob> get skipFileGlobList => _skipFileGlobList;
   final _skipFileGlobList = <Glob>[];
 
-  get skipFileRegexList => _skipFileRegexList;
+  /// Regular expression patterns to filter out unwanted files
+  ///
+  List<RegExp> get skipFileRegexList => _skipFileRegexList;
   final _skipFileRegexList = <RegExp>[];
 
-  get skipTextPlainList => _skipTextPlainList;
+  /// Literal strings to filter out unwanted lines in files or stdin
+  ///
+  List<String> get skipTextPlainList => _skipTextPlainList;
   final _skipTextPlainList = <String>[];
 
+  /// Regular expression patterns to filter out unwanted lines in files or stdin
+  ///
   get skipTextRegexList => _skipTextRegexList;
   final _skipTextRegexList = <RegExp>[];
 
-  get takeFileGlobList => _takeFileGlobList;
-  final _takeFileGlobList = <Glob>[];
+  /// Glob patterns to filter in wanted files
+  ///
+  List<Glob> get takeFileGlobList => _takeFileGlobList;
+  final List<Glob> _takeFileGlobList = [];
 
-  get takeFileRegexList => _takeFileRegexList;
+  /// Regular expression patterns to filter in wanted files
+  ///
+  List<RegExp> get takeFileRegexList => _takeFileRegexList;
   final _takeFileRegexList = <RegExp>[];
 
-  get takeTextPlainList => _takeTextPlainList;
+  /// Literal strings to filter in wanted lines in files or stdin
+  ///
+  List<String> get takeTextPlainList => _takeTextPlainList;
   final _takeTextPlainList = <String>[];
 
-  get takeTextRegexList => _takeTextRegexList;
+  /// Regular expression patterns to filter in wanted lines in files or stdin
+  ///
+  List<RegExp> get takeTextRegexList => _takeTextRegexList;
   final _takeTextRegexList = <RegExp>[];
 
-  //////////////////////////////////////////////////////////////////////////////
+  // Dependency injection
+  //
+  final _fs = services.get<FileSystem>();
+  final _logger = services.get<Logger>();
 
-  Logger _logger = Logger();
+  /// The constructor
+  ///
+  Options();
 
-  //////////////////////////////////////////////////////////////////////////////
-
-  Options([Logger? log]) {
-    if (log != null) {
-      _logger = log;
-    }
-  }
-
-  //////////////////////////////////////////////////////////////////////////////
-
+  /// The main method to parse CLI arguments
+  ///
   Future parse(List<String> args) async {
     var argCount = args.length;
 
@@ -90,15 +140,19 @@ class Options {
     var dirName = '';
 
     var optDefs = '''
-      +|?,h,help|quiet|verbose|d,dir:|equ:i|max:i|min:i|nocontent|text::|itext::
-       |regex::|iregex::|files::|ifiles::|rfiles::|rifiles,irfiles::''';
+      +|?,h,help|q,quiet|v,verbose|d,dir:
+      |e,exp,expect:|nocontent|nopath
+      |plain::|iplain::|regex::|iregex::
+      |files::|ifiles::|rfiles::|rifiles,irfiles::
+    ''';
 
     parseArgs(optDefs, args, (isFirstRun, optName, values) {
       // Show details when not on the first run
       //
       if (!isFirstRun) {
-        if (_logger.isDebug) {
-          _logger.debug('Option "$optName"${values.isEmpty ? '' : ': $values'}');
+        if (_logger.isVerbose) {
+          _logger
+              .verbose('Option "$optName"${values.isEmpty ? '' : ': $values'}');
         }
         return;
       }
@@ -112,10 +166,10 @@ class Options {
         // Logging flags
         //
         case 'quiet':
-          _logger.level = Logger.levelSilent;
+          _logger.level = Logger.levelQuiet;
           return;
         case 'verbose':
-          _logger.level = Logger.levelDebug;
+          _logger.level = Logger.levelVerbose;
           return;
 
         // Directory to start in
@@ -124,20 +178,11 @@ class Options {
           dirName = values[0];
           return;
 
-        // Expected match count boundaries
+        // Expected range of the match count
         //
-        case 'equ':
+        case 'expect':
           _isCount = true;
-          _max = values[0];
-          _min = _max;
-          return;
-        case 'max':
-          _isCount = true;
-          _max = values[0];
-          return;
-        case 'min':
-          _isCount = true;
-          _min = values[0];
+          _parseExpectRange(values[0]);
           return;
 
         // Type of check
@@ -146,40 +191,54 @@ class Options {
           _isPathsOnly = true;
           return;
 
+        // Output
+        //
+        case 'nopath':
+          _isPathShown = false;
+          return;
+
         // Plain skip-filters for text
         //
-        case 'text':
-          _getTextPlainList(_takeTextPlainList, _skipTextPlainList, values, isCaseSensitive: true);
+        case 'plain':
+          _getTextPlainList(_takeTextPlainList, _skipTextPlainList, values,
+              isCaseSensitive: true);
           return;
-        case 'itext':
-          _getTextPlainList(_takeTextPlainList, _skipTextPlainList, values, isCaseSensitive: false);
+        case 'iplain':
+          _getTextPlainList(_takeTextPlainList, _skipTextPlainList, values,
+              isCaseSensitive: false);
           return;
 
         // Regex take-filters for text
         //
         case 'regex':
-          _getTextRegexList(_takeTextRegexList, _skipTextRegexList, values, isCaseSensitive: true);
+          _getTextRegexList(_takeTextRegexList, _skipTextRegexList, values,
+              isCaseSensitive: true);
           return;
         case 'iregex':
-          _getTextRegexList(_takeTextRegexList, _skipTextRegexList, values, isCaseSensitive: false);
+          _getTextRegexList(_takeTextRegexList, _skipTextRegexList, values,
+              isCaseSensitive: false);
           return;
 
         // Glob take-filters for files
         //
         case 'files':
-          _getFileGlobList(_takeFileGlobList, _skipFileGlobList, values, isTake: true);
+          _getFileGlobList(_takeFileGlobList, _skipFileGlobList, values,
+              isTake: true);
           return;
         case 'ifiles':
-          _getFileGlobList(_takeFileGlobList, _skipFileGlobList, values, isTake: true, isCaseSensitive: false);
+          _getFileGlobList(_takeFileGlobList, _skipFileGlobList, values,
+              isTake: true, isCaseSensitive: false);
           return;
 
         // Regex take-filters for files
         //
         case 'rfiles':
-          _getFileRegexList(_takeFileRegexList, _skipFileRegexList, values, isTake: true);
+          _getFileRegexList(_takeFileRegexList, _skipFileRegexList, values,
+              isTake: true);
           return;
         case 'irfiles':
-          _getFileRegexList(_takeFileRegexList, _skipFileRegexList, values, isTake: true, isCaseSensitive: false);
+          _getFileRegexList(_takeFileRegexList, _skipFileRegexList, values,
+              isTake: true, isCaseSensitive: false);
           return;
       }
     });
@@ -189,8 +248,8 @@ class Options {
     await setCurrentDirectory(dirName);
   }
 
-  //////////////////////////////////////////////////////////////////////////////
-
+  /// Show how to use the application
+  ///
   Never printUsage([String? error]) {
     _logger.error('''
 $appName $appVersion (c) 2022 Alexander Iurovetski
@@ -203,33 +262,43 @@ USAGE:
 
 $appName [OPTIONS]
 
--[-]help, -?, -h    - this help screen
--[-]quiet           - no output
--[-]verbose         - detailed output
--[-]dir     <DIR>   - directory to start in
--[-]equ     <INT>   - expected exact number of matching lines
--[-]min     <INT>   - expected minimum number of matching lines
--[-]max     <INT>   - expected maximum number of matching lines
--[-]plain   <TEXT>  - filter lines matching or not matching plain text,
-                      case-sensitive
--[-]iplain  <TEXT>  - filter lines matching or not matching plain text,
-                      case-insensitive
--[-]regex   <REGEX> - filter lines matching or not matching regex,
-                      case-sensitive
--[-]iregex  <REGEX> - filter lines matching or not matching regex,
-                      case-insensitive
--[-]files   <GLOB>  - include or exclude filename(s) defined by glob,
-                      case-OS-specific
--[-]ifiles  <GLOB>  - include or exclude filename(s) defined by glob,
-                      case-insensitive
+-?,-h[elp]        - this help screen
+-q[uiet]          - no output
+-v[erbose]        - detailed output
+-d[ir]      DIR   - directory to start in
+-e[xp[ect]] RANGE - expected minimum number of matching lines:
+                    3 (exact), 2..5 (2 to 5), 2.. (2 or more), ..5 (up to 5)
+-plain      TEXT  - filter lines matching or not matching plain text,
+                    case-sensitive
+-iplain     TEXT  - filter lines matching or not matching plain text,
+                    case-insensitive
+-regex      REGEX - filter lines matching or not matching regex,
+                    case-sensitive
+-iregex     REGEX - filter lines matching or not matching regex,
+                    case-insensitive
+-files      GLOB  - include or exclude filename(s) defined by glob,
+                    case-OS-specific
+-ifiles     GLOB  - include or exclude filename(s) defined by glob,
+                    case-insensitive
+-rfiles     REGEX - include or exclude filename(s) defined by regex,
+                    case-OS-specific
+-irfiles    REGEX - include or exclude filename(s) defined by regex,
+                    case-insensitive
+
+Option names are case-insensitive and dash-insensitive: you can use any
+number of dashes in the front, in the middle or at the back of any option
+name.
 
 If the value of any of -[i]files is '-', read the list of files from stdin.
 If none of -[ir]files specified, read and filter text from stdin.
 
-Negation (not matching) is achieved by prepending a pattern or a plain text
-with an exclamation mark '!'. It can be escaped by doubling that: '!!'.
-'''
-    );
+If the value of any of -[i]rfiles does not contain '/', it will be matched
+against the filenames rather than paths. All directory separators will be
+converted to POSIX-compliant '/' before undertaking the match.
+
+Negation (the opposite match) is achieved by prepending a pattern or a plain
+text with an exclamation mark '!'. It can be escaped by doubling that: '!!'.
+''');
 
     if (error != null) {
       throw Exception(error);
@@ -238,57 +307,63 @@ with an exclamation mark '!'. It can be escaped by doubling that: '!!'.
     exit(1);
   }
 
-  //////////////////////////////////////////////////////////////////////////////
-
+  /// Make directory, passed as CLI option, the current one
+  ///
   Future setCurrentDirectory(String? dirName) async {
-    if (_logger.isDebug) {
-      _logger.debug('Arg start dir: ${dirName == null ? StringExt.unknown : '"$dirName"'}\n');
+    if (_logger.isVerbose) {
+      _logger.verbose(
+          'Arg start dir: ${dirName == null ? '<unknown>' : '"$dirName"'}\n');
     }
 
-    if ((dirName == null) || dirName.isBlank()) {
-      dirName = Path.currentDirectory.path;
+    if (dirName?.isEmpty ?? false) {
+      return;
     }
-    else {
-      var dir = Path.fileSystem.directory(dirName);
 
-      if (!await dir.exists()) {
-        throw Exception('Directory is not found: "$dirName"');
-      }
+    var dir = _fs.directory(_fs.path.adjust(dirName));
 
-      Path.currentDirectory = dir;
+    if (!await dir.exists()) {
+      throw Exception('Directory is not found: "$dirName"');
+    }
 
-      if (_logger.isDebug) {
-        _logger.debug('Switching to dir: "$dirName"\n');
-      }
+    _fs.currentDirectory = dir;
+
+    if (_logger.isVerbose) {
+      _logger.verbose('Switching to dir: "$dirName"\n');
     }
   }
 
-  //////////////////////////////////////////////////////////////////////////////
-
-  void _getFileGlobList(List<Glob> toList, List<Glob> toNegList, List values, {bool? isCaseSensitive, bool isTake = false}) {
+  /// A helper to get a take- or skip- glob pattern list for input file paths from CLI arguments
+  ///
+  void _getFileGlobList(List<Glob> toList, List<Glob> toNegList, List values,
+      {bool? isCaseSensitive, bool isTake = false}) {
     for (var value in values) {
       var info = _getNegInfo(toList, toNegList, value);
-      info[0].add(Glob(info[1], recursive: GlobExt.isRecursive(info[1]), caseSensitive: isCaseSensitive));
+      info[0].add(Glob(info[1],
+          recursive: GlobExt.isRecursive(info[1]),
+          caseSensitive: isCaseSensitive));
     }
     if (isTake) {
       _isTakeFileListFromStdin = _isFromStdin(values);
     }
   }
 
-  //////////////////////////////////////////////////////////////////////////////
-
-  void _getFileRegexList(List<RegExp> toList, List<RegExp> toNegList, List values, {bool? isCaseSensitive, bool isTake = false}) {
+  /// A helper to get a take- or skip- regular expression pattern list for input file paths from CLI arguments
+  ///
+  void _getFileRegexList(
+      List<RegExp> toList, List<RegExp> toNegList, List values,
+      {bool? isCaseSensitive, bool isTake = false}) {
     for (var value in values) {
       var info = _getNegInfo(toList, toNegList, value);
-      info[0].add(RegExp(Path.toPosixEscaped(info[1]), caseSensitive: isCaseSensitive ?? !Path.isWindowsFS));
+      info[0].add(RegExp(_fs.path.toPosix(info[1], isEscaped: true),
+          caseSensitive: isCaseSensitive ?? _fs.path.isCaseSensitive));
     }
     if (isTake) {
       _isTakeFileListFromStdin = _isFromStdin(values);
     }
   }
 
-  //////////////////////////////////////////////////////////////////////////////
-
+  /// A helper to get negation info: a parser for leading exclamation mark
+  ///
   List _getNegInfo(List toList, List toNegList, String value) {
     var negPrefix = rexNeg.firstMatch(value)?.group(1) ?? '';
     var negLen = negPrefix.length;
@@ -299,29 +374,49 @@ with an exclamation mark '!'. It can be escaped by doubling that: '!!'.
     ];
   }
 
-  //////////////////////////////////////////////////////////////////////////////
-
-  void _getTextPlainList(List<String> toList, List<String> toNegList, List values, {bool isCaseSensitive = false}) {
+  /// A helper to get a take- or skip- sub-string list for content lines from CLI arguments
+  ///
+  void _getTextPlainList(
+      List<String> toList, List<String> toNegList, List values,
+      {bool isCaseSensitive = false}) {
     for (var value in values) {
       var info = _getNegInfo(toList, toNegList, value);
-      info[0].add((isCaseSensitive ? charSensitive : charInsensitive) + info[1]);
+      var prefix = (isCaseSensitive ? charSensitive : charInsensitive);
+      info[0].add(prefix + info[1]);
     }
   }
 
-  //////////////////////////////////////////////////////////////////////////////
-
-  void _getTextRegexList(List<RegExp> toList, List<RegExp> toNegList, List values, {bool isCaseSensitive = false}) {
+  /// A helper to get a take- or skip- regular expression pattern list for content lines from CLI arguments
+  ///
+  void _getTextRegexList(
+      List<RegExp> toList, List<RegExp> toNegList, List values,
+      {bool isCaseSensitive = false}) {
     for (var value in values) {
       var info = _getNegInfo(toList, toNegList, value);
       info[0].add(RegExp(info[1], caseSensitive: isCaseSensitive));
     }
   }
 
-  //////////////////////////////////////////////////////////////////////////////
-
+  /// A helper to determine whether the file list represents a plain stdin
+  ///
   static bool _isFromStdin(List values) =>
-    ((values.length == 1) && (values[0] == StringExt.stdinPath));
+      ((values.length == 1) && (values[0] == '-'));
 
-  //////////////////////////////////////////////////////////////////////////////
+  /// A helper to parse a string [value] into lower and upper boundary ints
+  ///
+  void _parseExpectRange(String value) {
+    var matchSep = rexRange.firstMatch(value);
 
+    if (matchSep == null) {
+      _min = int.parse(value);
+      _max = _min;
+    } else {
+      _min = (matchSep.start == 0
+          ? 0
+          : int.parse(value.substring(0, matchSep.start)));
+      _max = (matchSep.end == value.length
+          ? -1
+          : int.parse(value.substring(matchSep.end)));
+    }
+  }
 }

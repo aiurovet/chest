@@ -6,10 +6,11 @@
   "configurations": [
     { "name": "Ad-hoc", "request": "launch", "type": "dart",
       "args": [
-        "-dir", "/home/ra/Projects",
-        "-itext", "!echo",
-        "-files", "**.bat",
-        "-equ", "694",
+        //"-dir", "/home/ra/Projects",
+        //"-itext", "!echo",
+        "-expect", "...694",
+        //"-nocontent",
+        "-files", "**.dart",
       ]
     },
   ]

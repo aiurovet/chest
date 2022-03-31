@@ -1,110 +1,121 @@
+// Copyright (c) 2022, Alexander Iurovetski
+// All rights reserved under MIT license (see LICENSE file)
+
 import 'dart:convert';
 import 'dart:io';
-import 'package:chest/ext/glob.dart';
-import 'package:chest/ext/string.dart';
-import 'package:chest/logger.dart';
-import 'package:chest/ext/path.dart';
+import 'package:chest/register_services.dart';
+import 'package:chest/ext/glob_ext.dart';
+import 'package:chest/ext/path_ext.dart';
 import 'package:chest/options.dart';
+import 'package:file/file.dart';
 import 'package:glob/glob.dart';
+import 'package:thin_logger/thin_logger.dart';
 
+/// A class to scan files or stdin, filter strings and optionally, count those
+///
 class Scanner {
-
-  //////////////////////////////////////////////////////////////////////////////
-
-  final Options options;
-  final Logger logger;
-
-  //////////////////////////////////////////////////////////////////////////////
-
+  /// The actual number of matched lines
+  ///
   int count = 0;
-  final _lineSplitter = LineSplitter();
 
-  //////////////////////////////////////////////////////////////////////////////
+  // Dependency injection
+  //
+  final _fs = services.get<FileSystem>();
+  final _lineSplitter = services.get<LineSplitter>();
+  final _logger = services.get<Logger>();
+  final _options = services.get<Options>();
 
-  Scanner(this.options, this.logger);
+  /// The constructor
+  ///
+  Scanner();
 
-  //////////////////////////////////////////////////////////////////////////////
-
+  /// The execution start point
+  ///
   Future exec() async {
-    if (options.isTakeFileListFromStdin) {
+    if (_options.isTakeFileListFromStdin) {
       await execEachFileFromStdin();
-    }
-    else if (options.takeFileGlobList.isEmpty && options.takeFileRegexList.isEmpty) {
+    } else if (_options.takeFileGlobList.isEmpty &&
+        _options.takeFileRegexList.isEmpty) {
       execContentFromStdin();
+    } else {
+      await execEachFileFromList();
     }
-    else {
-      await execEachFileFromGlobList();
-    }
 
-    if (options.isCount) {
-      var isSuccess = ((count >= options.min) && ((options.max < 0) || (count <= options.max)));
+    if (_options.isCount) {
+      var isSuccess = ((count >= _options.min) &&
+          ((_options.max < 0) || (count <= _options.max)));
 
-      var isMin = (options.max < 0);
-      var isEqu = (options.max == options.min);
+      var isMin = (_options.max < 0);
+      var isEqu = (_options.max == _options.min);
 
-      var details = (isMin ? '$count (actual) >= ${options.min} (min)' :
-                     isEqu ? '$count (actual) == ${options.min} (expected)' :
-                             '${options.min} (min) <= $count (actual) <= ${options.max} (max)');
+      var details = (isMin
+          ? '$count (actual) >= ${_options.min} (min)'
+          : isEqu
+              ? '$count (actual) == ${_options.min} (expected)'
+              : '${_options.min} (min) <= $count (actual) <= ${_options.max} (max)');
 
-      logger.out('${Options.appName}: ${isSuccess ? 'succeeded' : 'failed'}: $details');
+      _logger.out(
+          '${Options.appName}: ${isSuccess ? 'succeeded' : 'failed'}: $details');
     }
   }
 
-  //////////////////////////////////////////////////////////////////////////////
-
+  /// Read content from stdin line by line, filter those and, optionally, count
+  ///
   void execContentFromStdin() {
-    if (options.isPathsOnly) {
-      logger.debug('Invalid request: ');
+    if (_options.isPathsOnly) {
+      _logger.verbose('Invalid request: ');
     }
 
-    if (logger.isDebug) {
-      logger.debug('Scanning the content of ${StringExt.stdinDisplay}');
+    if (_logger.isVerbose) {
+      _logger.verbose('Scanning the content of stdin');
     }
 
-    for (; ;) {
+    for (;;) {
       var line = stdin.readLineSync(retainNewlines: false)?.trim();
 
       if (line == null) {
         break;
       }
 
-      execLine(line);
+      execLine(line, '');
     }
   }
 
-  //////////////////////////////////////////////////////////////////////////////
-
-  Future execEachFileFromGlobList() async {
+  /// Read and filter the list of files defined by options, then process each of those
+  ///
+  Future execEachFileFromList() async {
     var dirNameMap = <String, bool>{};
 
-    if (logger.isDebug) {
-      logger.debug('Scanning the content of files from the take-glob list');
+    if (_logger.isVerbose) {
+      _logger.verbose('Scanning the content of files from the take-glob list');
     }
 
     // Collect all distinct lowest level top directory names for the further
     // pick up of all files in those directories and optionally, below
 
-    for (var takeFileGlob in options.takeFileGlobList) {
-      var dirName = GlobExt.splitPattern(takeFileGlob.pattern)[0];
+    for (var takeFileGlob in _options.takeFileGlobList) {
+      var dirName = takeFileGlob.split(_fs)[0];
 
-      if (logger.isDebug) {
-        logger.debug('Getting top directory of the take-glob "$takeFileGlob"');
+      if (_logger.isVerbose) {
+        _logger
+            .verbose('Getting top directory of the take-glob "$takeFileGlob"');
       }
 
       if (dirName == '.') {
         dirName = '';
       }
 
-      if (logger.isDebug) {
-        logger.debug('...dir: "$dirName"');
+      if (_logger.isVerbose) {
+        _logger.verbose('...dir: "$dirName"');
       }
 
       var wasRecursive = dirNameMap[dirName];
       var isRecursive = takeFileGlob.recursive;
 
       if ((wasRecursive == null) || (!wasRecursive && isRecursive)) {
-        if (logger.isDebug) {
-          logger.debug('...adding the dir with${isRecursive ? '' : 'out'} recursive scan');
+        if (_logger.isVerbose) {
+          _logger.verbose(
+              '...adding the dir with${isRecursive ? '' : 'out'} recursive scan');
         }
         dirNameMap[dirName] = isRecursive;
       }
@@ -113,24 +124,23 @@ class Scanner {
     // Loop through every lowest level top directory name
 
     for (var key in dirNameMap.keys) {
-      var topDirName = (key.isEmpty ?
-        Path.fileSystem.currentDirectory.path :
-        Path.getFullPath(key)
-      );
+      var topDirName =
+          (key.isEmpty ? _fs.currentDirectory.path : _fs.path.getFullPath(key));
 
       // Loop through all files in the current directory (and optionally, below)
 
       var isRecursive = dirNameMap[key] ?? false;
-      var entities = Path.fileSystem.directory(topDirName).list(recursive: isRecursive);
-      
+      var entities = _fs.directory(topDirName).list(recursive: isRecursive);
+
       await for (var entity in entities) {
         var filePath = entity.path;
-        var fileName = Path.basename(filePath);
+        var fileName = _fs.path.basename(filePath);
 
-        var relPath = Path.toPosix(Path.relative(filePath, from: topDirName));
+        var relPath =
+            _fs.path.toPosix(_fs.path.relative(filePath, from: topDirName));
 
-        if (logger.isDebug) {
-          logger.debug('Validating the path "$filePath"');
+        if (_logger.isVerbose) {
+          _logger.verbose('Validating the path "$filePath"');
         }
 
         // If not a file, get the next one
@@ -138,18 +148,22 @@ class Scanner {
         var stat = await entity.stat();
 
         if (stat.type != FileSystemEntityType.file) {
-          if (logger.isDebug) {
-            logger.debug('...not a file - skipping');
+          if (_logger.isVerbose) {
+            _logger.verbose('...not a file - skipping');
           }
           continue;
         }
 
         // Match the current path against take- and skip-patterns and process the file in case of success
 
-        var isValid = isFilePathMatchedByGlobList(filePath, relPath, fileName, options.takeFileGlobList) &&
-                      isFilePathMatchedByRegexList(filePath, relPath, fileName, options.takeFileRegexList) &&
-                      !isFilePathMatchedByGlobList(filePath, relPath, fileName, options.skipFileGlobList) &&
-                      !isFilePathMatchedByRegexList(filePath, relPath, fileName, options.skipFileRegexList);
+        var isValid = isFilePathMatchedByGlobList(
+                filePath, relPath, fileName, _options.takeFileGlobList) &&
+            isFilePathMatchedByRegexList(
+                filePath, relPath, fileName, _options.takeFileRegexList) &&
+            !isFilePathMatchedByGlobList(
+                filePath, relPath, fileName, _options.skipFileGlobList) &&
+            !isFilePathMatchedByRegexList(
+                filePath, relPath, fileName, _options.skipFileRegexList);
 
         if (isValid) {
           await execFile(filePath, isCheckRequired: false);
@@ -158,16 +172,17 @@ class Scanner {
     }
   }
 
-  //////////////////////////////////////////////////////////////////////////////
-
+  /// Read and filter the list of files from stdin, then process each of those
+  ///
   Future execEachFileFromStdin() async {
-    if (logger.isDebug) {
-      logger.debug('Scanning the content of files with the paths obtained from ${StringExt.stdinDisplay}');
+    if (_logger.isVerbose) {
+      _logger.verbose(
+          'Scanning the content of files with the paths obtained from stdin');
     }
 
     // Loop through all file paths in stdin
 
-    for (; ;) {
+    for (;;) {
       var filePath = stdin.readLineSync(retainNewlines: false)?.trim();
 
       if (filePath == null) {
@@ -177,16 +192,18 @@ class Scanner {
         continue;
       }
 
-      var fileName = Path.basename(filePath);
+      var fileName = _fs.path.basename(filePath);
 
-      if (logger.isDebug) {
-        logger.debug('Validating the path "$filePath"');
+      if (_logger.isVerbose) {
+        _logger.verbose('Validating the path "$filePath"');
       }
 
       // Match the current path against skip patterns and process the file in case of success
 
-      var isValid = !isFilePathMatchedByGlobList(filePath, filePath, fileName, options.skipFileGlobList) &&
-                    !isFilePathMatchedByRegexList(filePath, filePath, fileName, options.skipFileRegexList);
+      var isValid = !isFilePathMatchedByGlobList(
+              filePath, filePath, fileName, _options.skipFileGlobList) &&
+          !isFilePathMatchedByRegexList(
+              filePath, filePath, fileName, _options.skipFileRegexList);
 
       if (isValid) {
         await execFile(filePath, isCheckRequired: true);
@@ -194,37 +211,39 @@ class Scanner {
     }
   }
 
-  //////////////////////////////////////////////////////////////////////////////
-
+  /// Check the file defined by [filePath] exists if [isCheckRequired] is set,
+  /// then process that file: read it line by line, filter those which are
+  /// expected and, optionally, count those, then match it aagins given range
+  ///
   Future execFile(String filePath, {bool isCheckRequired = false}) async {
-    if (options.isPathsOnly) {
-      logger.out(filePath);
+    if (_options.isPathsOnly) {
+      _logger.out(filePath);
       return;
     }
 
-    if (logger.isDebug) {
-      logger.debug('Scanning the file "$filePath"');
+    if (_logger.isVerbose) {
+      _logger.verbose('Scanning the file "$filePath"');
     }
 
-    var file = Path.fileSystem.file(filePath);
+    var file = _fs.file(filePath);
 
     if (!isCheckRequired || await file.exists()) {
-      var lines = file.openRead().transform(utf8.decoder).transform(_lineSplitter);
+      var lines =
+          file.openRead().transform(utf8.decoder).transform(_lineSplitter);
 
       await for (var line in lines) {
-        execLine(line);
+        execLine(line, filePath);
       }
-    }
-    else {
+    } else {
       throw Exception('File not found: "${file.path}"');
     }
   }
 
-  //////////////////////////////////////////////////////////////////////////////
-
-  bool execLine(String line) {
-    if (logger.isDebug) {
-      logger.debug('Validating the line: $line');
+  /// Filter the given [line] and either print it (possibly, prefixed by [filePath]) or count
+  ///
+  bool execLine(String line, String filePath) {
+    if (_logger.isVerbose) {
+      _logger.verbose('Validating the line: $line');
     }
 
     var lineLC = line.toLowerCase();
@@ -232,9 +251,9 @@ class Scanner {
 
     // Matching against every plain take-text
 
-    for (var plain in options.takeTextPlainList) {
-      if (logger.isDebug) {
-        logger.debug('...matching against plain take-text: $plain');
+    for (var plain in _options.takeTextPlainList) {
+      if (_logger.isVerbose) {
+        _logger.verbose('...matching against plain take-text: $plain');
       }
 
       var isCaseSensitive = (plain[0] == Options.charSensitive);
@@ -246,17 +265,17 @@ class Scanner {
     }
 
     if (!isValid) {
-      if (logger.isDebug) {
-        logger.debug('...not matched - skipping');
+      if (_logger.isVerbose) {
+        _logger.verbose('...not matched - skipping');
       }
       return false;
     }
 
     // Matching against every plain skip-text
 
-    for (var plain in options.skipTextPlainList) {
-      if (logger.isDebug) {
-        logger.debug('...matching against plain skip-text: $plain');
+    for (var plain in _options.skipTextPlainList) {
+      if (_logger.isVerbose) {
+        _logger.verbose('...matching against plain skip-text: $plain');
       }
 
       var isCaseSensitive = (plain[0] == Options.charSensitive);
@@ -268,17 +287,17 @@ class Scanner {
     }
 
     if (!isValid) {
-      if (logger.isDebug) {
-        logger.debug('...matched - skipping');
+      if (_logger.isVerbose) {
+        _logger.verbose('...matched - skipping');
       }
       return false;
     }
 
     // Matching against every take-regex
 
-    for (var regex in options.takeTextRegexList) {
-      if (logger.isDebug) {
-        logger.debug('...matching against take-regex: ${regex.pattern}');
+    for (var regex in _options.takeTextRegexList) {
+      if (_logger.isVerbose) {
+        _logger.verbose('...matching against take-regex: ${regex.pattern}');
       }
 
       isValid = regex.hasMatch(line);
@@ -289,17 +308,17 @@ class Scanner {
     }
 
     if (!isValid) {
-      if (logger.isDebug) {
-        logger.debug('...not matched - skipping');
+      if (_logger.isVerbose) {
+        _logger.verbose('...not matched - skipping');
       }
       return false;
     }
 
     // Matching against every skip-regex
 
-    for (var regex in options.skipTextRegexList) {
-      if (logger.isDebug) {
-        logger.debug('...matching against skip-regex: $regex');
+    for (var regex in _options.skipTextRegexList) {
+      if (_logger.isVerbose) {
+        _logger.verbose('...matching against skip-regex: $regex');
       }
 
       isValid = !regex.hasMatch(line);
@@ -310,44 +329,46 @@ class Scanner {
     }
 
     if (!isValid) {
-      if (logger.isDebug) {
-        logger.debug('...matched - skipping');
+      if (_logger.isVerbose) {
+        _logger.verbose('...matched - skipping');
       }
       return false;
     }
 
-    if (logger.isDebug) {
-      logger.debug('...matched');
+    if (_logger.isVerbose) {
+      _logger.verbose('...matched');
     }
 
-    if (options.isCount) {
+    if (_options.isCount) {
       ++count;
-    }
-    else {
-      logger.out(line);
+    } else {
+      _logger.out(filePath.isEmpty ? line : '$filePath:$line');
     }
 
     return true;
   }
 
-  //////////////////////////////////////////////////////////////////////////////
-
-  bool isFilePathMatchedByGlobList(String filePath, String relPath, String fileName, List<Glob> globList) {
-    var isTake = (globList == options.takeFileGlobList);
+  /// Match [filePath] or [fileName] against every glob pattern in [globList]
+  /// (stop when the first no-match encountered)
+  ///
+  bool isFilePathMatchedByGlobList(
+      String filePath, String relPath, String fileName, List<Glob> globList) {
+    var isTake = (globList == _options.takeFileGlobList);
 
     for (var glob in globList) {
-      if (logger.isDebug) {
-        logger.debug('...matching against ${isTake ? 'take' : 'skip'}-glob: ${glob.pattern}');
+      if (_logger.isVerbose) {
+        _logger.verbose(
+            '...matching against ${isTake ? 'take' : 'skip'}-glob: ${glob.pattern}');
       }
 
-      var hasDir = glob.pattern.contains(Path.separatorPosix);
+      var hasDir = glob.pattern.contains(PathExt.separatorPosix);
 
       var isMatch = (hasDir ? glob.matches(relPath) : glob.matches(fileName));
       var isValid = (isTake == isMatch);
 
       if (!isValid) {
-        if (logger.isDebug) {
-          logger.debug('...${isTake ? 'not ' : ''}matched - skipping');
+        if (_logger.isVerbose) {
+          _logger.verbose('...${isTake ? 'not ' : ''}matched - skipping');
         }
         return isMatch;
       }
@@ -356,24 +377,28 @@ class Scanner {
     return isTake;
   }
 
-  //////////////////////////////////////////////////////////////////////////////
-
-  bool isFilePathMatchedByRegexList(String filePath, String relPath, String fileName, List<RegExp> regexList) {
-    var isTake = (regexList == options.takeFileRegexList);
+  /// Match [filePath] or [fileName] against every regular expression pattern in [regexList]
+  /// (stop when the first no-match encountered)
+  ///
+  bool isFilePathMatchedByRegexList(String filePath, String relPath,
+      String fileName, List<RegExp> regexList) {
+    var isTake = (regexList == _options.takeFileRegexList);
 
     for (var regex in regexList) {
-      if (logger.isDebug) {
-        logger.debug('...matching against ${isTake ? 'take' : 'skip'}-regex: ${regex.pattern}');
+      if (_logger.isVerbose) {
+        _logger.verbose(
+            '...matching against ${isTake ? 'take' : 'skip'}-regex: ${regex.pattern}');
       }
 
-      var hasDir = regex.pattern.contains(Path.separatorPosixEscaped);
+      var hasDir = regex.pattern.contains(PathExt.separatorPosixEscaped);
 
-      var isMatch = (hasDir ? regex.hasMatch(filePath) : regex.hasMatch(fileName));
+      var isMatch =
+          (hasDir ? regex.hasMatch(filePath) : regex.hasMatch(fileName));
       var isValid = (isTake == isMatch);
 
       if (!isValid) {
-        if (logger.isDebug) {
-          logger.debug('...${isTake ? 'not ' : ''}matched - skipping');
+        if (_logger.isVerbose) {
+          _logger.verbose('...${isTake ? 'not ' : ''}matched - skipping');
         }
         return isMatch;
       }
@@ -381,7 +406,4 @@ class Scanner {
 
     return isTake;
   }
-
-  //////////////////////////////////////////////////////////////////////////////
-
 }

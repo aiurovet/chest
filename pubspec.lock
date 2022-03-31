@@ -85,6 +85,13 @@ packages:
       url: "https://pub.dartlang.org"
     source: hosted
     version: "2.1.2"
+  get_it:
+    dependency: "direct main"
+    description:
+      name: get_it
+      url: "https://pub.dartlang.org"
+    source: hosted
+    version: "7.2.0"
   glob:
     dependency: "direct main"
     description:
@@ -175,7 +182,7 @@ packages:
       name: parse_args
       url: "https://pub.dartlang.org"
     source: hosted
-    version: "0.4.1"
+    version: "0.4.2"
   path:
     dependency: "direct main"
     description:
@@ -295,6 +302,13 @@ packages:
       url: "https://pub.dartlang.org"
     source: hosted
     version: "0.4.11"
+  thin_logger:
+    dependency: "direct main"
+    description:
+      name: thin_logger
+      url: "https://pub.dartlang.org"
+    source: hosted
+    version: "0.1.1"
   typed_data:
     dependency: transitive
     description:
@@ -338,4 +352,4 @@ packages:
     source: hosted
     version: "3.1.0"
 sdks:
-  dart: ">=2.16.1 <3.0.0"
+  dart: ">=2.16.2 <3.0.0"
