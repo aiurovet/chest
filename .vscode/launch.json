@@ -6,7 +6,9 @@
   "configurations": [
     { "name": "Ad-hoc", "request": "launch", "type": "dart", "program": "bin/main.dart",
       "args": [ "-expect", "...694", "-files", "**.dart", ] },
-    { "name": "All files", "request": "launch", "type": "dart", "program": "bin/main.dart",
-      "args": [ "-files", "**", "-nocontent" ] },
+    { "name": "Count app files", "request": "launch", "type": "dart", "program": "bin/main.dart",
+      "args": [ "-dir", "app", "-ifiles", "**.{gz,zip}", "-expect", "3", "-nocontent" ] },
+    { "name": "Usage", "request": "launch", "type": "dart", "program": "bin/main.dart",
+      "args": [ "-?", ] },
   ]
 }

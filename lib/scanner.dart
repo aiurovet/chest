@@ -62,10 +62,6 @@ class Scanner {
   /// Read content from stdin line by line, filter those and, optionally, count
   ///
   void execContentFromStdin() {
-    if (_options.isPathsOnly) {
-      _logger.verbose('Invalid request: ');
-    }
-
     if (_logger.isVerbose) {
       _logger.verbose('Scanning the content of stdin');
     }
@@ -121,11 +117,17 @@ class Scanner {
       }
     }
 
+    var isAll = _options.isAll;
+
     // Loop through every lowest level top directory name
 
     for (var key in dirNameMap.keys) {
       var topDirName =
           (key.isEmpty ? _fs.currentDirectory.path : _fs.path.getFullPath(key));
+
+      if (!isAll && _fs.path.isHidden(topDirName)) {
+        break;
+      }
 
       // Loop through all files in the current directory (and optionally, below)
 
@@ -134,6 +136,11 @@ class Scanner {
 
       await for (var entity in entities) {
         var filePath = entity.path;
+
+        if (!isAll && _fs.path.isHidden(filePath)) {
+          break;
+        }
+
         var fileName = _fs.path.basename(filePath);
 
         var relPath =
@@ -217,7 +224,11 @@ class Scanner {
   ///
   Future execFile(String filePath, {bool isCheckRequired = false}) async {
     if (_options.isPathsOnly) {
-      _logger.out(filePath);
+      if (_options.isCount) {
+        ++count;
+      } else {
+        _logger.out(filePath);
+      }
       return;
     }
 

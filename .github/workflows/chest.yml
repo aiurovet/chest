@@ -60,9 +60,15 @@ jobs:
 
       ################################################################################
 
-      - name: Running Integration Test 1 - All files in the current directory
+      - name: Running Integration Test 1 - List all files in the current directory
         run: |
           bin/${{runner.os}}/chest -files "**" -nocontent
+
+      ################################################################################
+
+      - name: Running Integration Test 2 - Count app files
+        run: |
+          bin/${{runner.os}}/chest -dir "app" -files "**.{gz,zip}" -nocontent -expect 3
 
       ################################################################################
 

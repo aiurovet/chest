@@ -49,6 +49,12 @@ class Options {
 
   //////////////////////////////////////////////////////////////////////////////
 
+  /// A flag property indicating we fetch all files including the hidden ones
+  /// (not excluding any file or sub-directory starting with the dot)
+  ///
+  bool get isAll => _isAll;
+  var _isAll = false;
+
   /// A flag property indicating we just count the matches
   ///
   bool get isCount => _isCount;
@@ -140,8 +146,8 @@ class Options {
     var dirName = '';
 
     var optDefs = '''
-      +|?,h,help|q,quiet|v,verbose|d,dir:
-      |e,exp,expect:|nocontent|nopath
+      +|?,h,help|q,quiet|v,verbose|a,all
+      |d,dir:|e,exp,expect:|nocontent|nopath
       |plain::|iplain::|regex::|iregex::
       |files::|ifiles::|rfiles::|rifiles,irfiles::
     ''';
@@ -170,6 +176,12 @@ class Options {
           return;
         case 'verbose':
           _logger.level = Logger.levelVerbose;
+          return;
+
+        // Directory to start in
+        //
+        case 'all':
+          _isAll = true;
           return;
 
         // Directory to start in
@@ -265,6 +277,8 @@ $appName [OPTIONS]
 -?,-h[elp]        - this help screen
 -q[uiet]          - no output
 -v[erbose]        - detailed output
+-a[ll]            - scan all files including the hidden ones
+                    (a filename or a sub-dir of any level starting with '.')
 -d[ir]      DIR   - directory to start in
 -e[xp[ect]] RANGE - expected minimum number of matching lines:
                     3 (exact), 2..5 (2 to 5), 2.. (2 or more), ..5 (up to 5)
@@ -298,6 +312,13 @@ converted to POSIX-compliant '/' before undertaking the match.
 
 Negation (the opposite match) is achieved by prepending a pattern or a plain
 text with an exclamation mark '!'. It can be escaped by doubling that: '!!'.
+
+EXAMPLES:
+
+$appName -dir "\${HOME}/Documents" -files '**' "!*.doc*"
+$appName -dir "%{USERPROFILE}%\\Documents" -files '**' "!*.doc*"
+
+$appName -d "\${HOME}/Projects/chest/app" -ifiles '**.{gz,zip}' -e 3 -nocontent
 ''');
 
     if (error != null) {

@@ -78,6 +78,12 @@ extension PathExt on p.Context {
   ///
   bool get isCaseSensitive => (separator == separatorPosix);
 
+  /// Check whether [aPath] represents a hidden file or directory
+  /// (i.e. [aPath] contains a sub-dir or filename starting with a dot)
+  ///
+  bool isHidden(String aPath) =>
+    aPath.contains(separator + '.') || (aPath[0] == '.');
+
   /// Check whether the file system is POSIX-compliant
   ///
   bool get isPosix => (separator == separatorPosix);
