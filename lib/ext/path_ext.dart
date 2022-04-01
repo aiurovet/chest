@@ -7,26 +7,24 @@ extension PathExt on p.Context {
   ///
   static const separatorPosix = r'/';
 
-  /// Escaped directory separator - POSIX
-  ///
-  static const separatorPosixEscaped = r'\/';
-
   /// Directory separator - Windows
   ///
   static const separatorWindows = r'\';
 
+  /// Escaped directory separator - POSIX
+  ///
+  static const _separatorPosixEscaped = r'\/';
+
   /// Escaped directory separator - Windows
   ///
-  static const separatorWindowsEscaped = r'\\';
+  static const _separatorWindowsEscaped = r'\\';
 
   /// Fix [aPath] by replacing every Posix or Windows separator with the current one
   ///
   String adjust(String? aPath) {
     if ((aPath == null) || aPath.isEmpty) {
       return '';
-    }
-
-    if (separator == separatorPosix) {
+    } else if (separator == separatorPosix) {
       return aPath.replaceAll(separatorWindows, separator);
     } else {
       return aPath.replaceAll(separatorPosix, separator);
@@ -84,7 +82,7 @@ extension PathExt on p.Context {
   /// effects from . and ..
   ///
   bool isHidden(String aPath) =>
-    (aPath.contains(separator + '.') || (aPath[0] == '.'));
+      (aPath.contains(separator + '.') || (aPath[0] == '.'));
 
   /// Check whether the file system is POSIX-compliant
   ///
@@ -95,14 +93,10 @@ extension PathExt on p.Context {
   String toPosix(String? aPath, {bool isEscaped = false}) {
     if (aPath == null) {
       return '';
-    }
-
-    if (aPath.isEmpty || (separator == separatorPosix)) {
+    } else if (aPath.isEmpty || (separator == separatorPosix)) {
       return aPath;
-    }
-
-    if (isEscaped) {
-      return aPath.replaceAll(separatorWindowsEscaped, separatorPosixEscaped);
+    } else if (isEscaped) {
+      return aPath.replaceAll(_separatorWindowsEscaped, _separatorPosixEscaped);
     } else {
       return aPath.replaceAll(separatorWindows, separatorPosix);
     }

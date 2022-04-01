@@ -122,11 +122,8 @@ class Scanner {
     // Loop through every lowest level top directory name
     //
     for (var key in dirNameMap.keys) {
-      var topDirName = (
-        key.isEmpty ?
-        _fs.currentDirectory.path :
-        _fs.path.getFullPath(key)
-      );
+      var topDirName =
+          (key.isEmpty ? _fs.currentDirectory.path : _fs.path.getFullPath(key));
 
       if (!isAll && _fs.path.isHidden(topDirName)) {
         break;
@@ -163,8 +160,7 @@ class Scanner {
 
         // Match the current path against take- and skip-patterns and process the file in case of success
         //
-        var isValid =
-            isFilePathMatchedByGlobList(
+        var isValid = isFilePathMatchedByGlobList(
                 filePath, fileName, _options.takeFileGlobList) &&
             isFilePathMatchedByRegexList(
                 filePath, fileName, _options.takeFileRegexList) &&
@@ -208,8 +204,7 @@ class Scanner {
 
       // Match the current path against skip patterns and process the file in case of success
       //
-      var isValid =
-          !isFilePathMatchedByGlobList(
+      var isValid = !isFilePathMatchedByGlobList(
               filePath, fileName, _options.skipFileGlobList) &&
           !isFilePathMatchedByRegexList(
               filePath, fileName, _options.skipFileRegexList);
@@ -393,7 +388,8 @@ class Scanner {
   /// Match [filePath] or [fileName] against every regular expression pattern in [regexList]
   /// (stop when the first no-match encountered)
   ///
-  bool isFilePathMatchedByRegexList(String filePath, String fileName, List<RegExp> regexList) {
+  bool isFilePathMatchedByRegexList(
+      String filePath, String fileName, List<RegExp> regexList) {
     var isTake = (regexList == _options.takeFileRegexList);
 
     for (var regex in regexList) {
@@ -402,7 +398,7 @@ class Scanner {
             '...matching against ${isTake ? 'take' : 'skip'}-regex: ${regex.pattern}');
       }
 
-      var hasDir = regex.pattern.contains(PathExt.separatorPosixEscaped);
+      var hasDir = regex.pattern.contains(PathExt._separatorPosixEscaped);
 
       var isMatch =
           (hasDir ? regex.hasMatch(filePath) : regex.hasMatch(fileName));
