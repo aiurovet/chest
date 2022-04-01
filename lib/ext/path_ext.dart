@@ -44,7 +44,7 @@ extension PathExt on p.Context {
 
     // Path canonicalization on Windows converts the original path to lower case, so
     // trying to keep the original parts of path as much as possible (at least, the basename)
-
+    //
     var partsOfFull = full.toLowerCase().split(separator);
     var partsOfPath = aPath.split(separator);
 
@@ -80,9 +80,11 @@ extension PathExt on p.Context {
 
   /// Check whether [aPath] represents a hidden file or directory
   /// (i.e. [aPath] contains a sub-dir or filename starting with a dot)
+  /// Ideally, [aPath] should be a full path to avoid possible side
+  /// effects from . and ..
   ///
   bool isHidden(String aPath) =>
-    aPath.contains(separator + '.') || (aPath[0] == '.');
+    (aPath.contains(separator + '.') || (aPath[0] == '.'));
 
   /// Check whether the file system is POSIX-compliant
   ///

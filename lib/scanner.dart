@@ -88,7 +88,7 @@ class Scanner {
 
     // Collect all distinct lowest level top directory names for the further
     // pick up of all files in those directories and optionally, below
-
+    //
     for (var takeFileGlob in _options.takeFileGlobList) {
       var dirName = takeFileGlob.split(_fs)[0];
 
@@ -120,17 +120,20 @@ class Scanner {
     var isAll = _options.isAll;
 
     // Loop through every lowest level top directory name
-
+    //
     for (var key in dirNameMap.keys) {
-      var topDirName =
-          (key.isEmpty ? _fs.currentDirectory.path : _fs.path.getFullPath(key));
+      var topDirName = (
+        key.isEmpty ?
+        _fs.currentDirectory.path :
+        _fs.path.getFullPath(key)
+      );
 
       if (!isAll && _fs.path.isHidden(topDirName)) {
         break;
       }
 
       // Loop through all files in the current directory (and optionally, below)
-
+      //
       var isRecursive = dirNameMap[key] ?? false;
       var entities = _fs.directory(topDirName).list(recursive: isRecursive);
 
@@ -138,20 +141,17 @@ class Scanner {
         var filePath = entity.path;
 
         if (!isAll && _fs.path.isHidden(filePath)) {
-          break;
+          continue;
         }
 
         var fileName = _fs.path.basename(filePath);
-
-        var relPath =
-            _fs.path.toPosix(_fs.path.relative(filePath, from: topDirName));
 
         if (_logger.isVerbose) {
           _logger.verbose('Validating the path "$filePath"');
         }
 
         // If not a file, get the next one
-
+        //
         var stat = await entity.stat();
 
         if (stat.type != FileSystemEntityType.file) {
@@ -162,15 +162,16 @@ class Scanner {
         }
 
         // Match the current path against take- and skip-patterns and process the file in case of success
-
-        var isValid = isFilePathMatchedByGlobList(
-                filePath, relPath, fileName, _options.takeFileGlobList) &&
+        //
+        var isValid =
+            isFilePathMatchedByGlobList(
+                filePath, fileName, _options.takeFileGlobList) &&
             isFilePathMatchedByRegexList(
-                filePath, relPath, fileName, _options.takeFileRegexList) &&
+                filePath, fileName, _options.takeFileRegexList) &&
             !isFilePathMatchedByGlobList(
-                filePath, relPath, fileName, _options.skipFileGlobList) &&
+                filePath, fileName, _options.skipFileGlobList) &&
             !isFilePathMatchedByRegexList(
-                filePath, relPath, fileName, _options.skipFileRegexList);
+                filePath, fileName, _options.skipFileRegexList);
 
         if (isValid) {
           await execFile(filePath, isCheckRequired: false);
@@ -188,7 +189,7 @@ class Scanner {
     }
 
     // Loop through all file paths in stdin
-
+    //
     for (;;) {
       var filePath = stdin.readLineSync(retainNewlines: false)?.trim();
 
@@ -206,11 +207,12 @@ class Scanner {
       }
 
       // Match the current path against skip patterns and process the file in case of success
-
-      var isValid = !isFilePathMatchedByGlobList(
-              filePath, filePath, fileName, _options.skipFileGlobList) &&
+      //
+      var isValid =
+          !isFilePathMatchedByGlobList(
+              filePath, fileName, _options.skipFileGlobList) &&
           !isFilePathMatchedByRegexList(
-              filePath, filePath, fileName, _options.skipFileRegexList);
+              filePath, fileName, _options.skipFileRegexList);
 
       if (isValid) {
         await execFile(filePath, isCheckRequired: true);
@@ -261,7 +263,7 @@ class Scanner {
     var isValid = true;
 
     // Matching against every plain take-text
-
+    //
     for (var plain in _options.takeTextPlainList) {
       if (_logger.isVerbose) {
         _logger.verbose('...matching against plain take-text: $plain');
@@ -283,7 +285,7 @@ class Scanner {
     }
 
     // Matching against every plain skip-text
-
+    //
     for (var plain in _options.skipTextPlainList) {
       if (_logger.isVerbose) {
         _logger.verbose('...matching against plain skip-text: $plain');
@@ -305,7 +307,7 @@ class Scanner {
     }
 
     // Matching against every take-regex
-
+    //
     for (var regex in _options.takeTextRegexList) {
       if (_logger.isVerbose) {
         _logger.verbose('...matching against take-regex: ${regex.pattern}');
@@ -326,7 +328,7 @@ class Scanner {
     }
 
     // Matching against every skip-regex
-
+    //
     for (var regex in _options.skipTextRegexList) {
       if (_logger.isVerbose) {
         _logger.verbose('...matching against skip-regex: $regex');
@@ -363,7 +365,7 @@ class Scanner {
   /// (stop when the first no-match encountered)
   ///
   bool isFilePathMatchedByGlobList(
-      String filePath, String relPath, String fileName, List<Glob> globList) {
+      String filePath, String fileName, List<Glob> globList) {
     var isTake = (globList == _options.takeFileGlobList);
 
     for (var glob in globList) {
@@ -374,7 +376,7 @@ class Scanner {
 
       var hasDir = glob.pattern.contains(PathExt.separatorPosix);
 
-      var isMatch = (hasDir ? glob.matches(relPath) : glob.matches(fileName));
+      var isMatch = (hasDir ? glob.matches(filePath) : glob.matches(fileName));
       var isValid = (isTake == isMatch);
 
       if (!isValid) {
@@ -391,8 +393,7 @@ class Scanner {
   /// Match [filePath] or [fileName] against every regular expression pattern in [regexList]
   /// (stop when the first no-match encountered)
   ///
-  bool isFilePathMatchedByRegexList(String filePath, String relPath,
-      String fileName, List<RegExp> regexList) {
+  bool isFilePathMatchedByRegexList(String filePath, String fileName, List<RegExp> regexList) {
     var isTake = (regexList == _options.takeFileRegexList);
 
     for (var regex in regexList) {

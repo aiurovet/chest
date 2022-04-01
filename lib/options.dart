@@ -235,11 +235,11 @@ class Options {
         //
         case 'files':
           _getFileGlobList(_takeFileGlobList, _skipFileGlobList, values,
-              isTake: true);
+              dirName, isTake: true);
           return;
         case 'ifiles':
           _getFileGlobList(_takeFileGlobList, _skipFileGlobList, values,
-              isTake: true, isCaseSensitive: false);
+              dirName, isTake: true, isCaseSensitive: false);
           return;
 
         // Regex take-filters for files
@@ -256,7 +256,7 @@ class Options {
     });
 
     // Post-parsing
-
+    //
     await setCurrentDirectory(dirName);
   }
 
@@ -356,9 +356,11 @@ $appName -d "\${HOME}/Projects/chest/app" -ifiles '**.{gz,zip}' -e 3 -nocontent
   /// A helper to get a take- or skip- glob pattern list for input file paths from CLI arguments
   ///
   void _getFileGlobList(List<Glob> toList, List<Glob> toNegList, List values,
-      {bool? isCaseSensitive, bool isTake = false}) {
+      String topDirName, {bool? isCaseSensitive, bool isTake = false}) {
     for (var value in values) {
-      var info = _getNegInfo(toList, toNegList, value);
+      var fullValue = _fs.path.getFullPath(_fs.path.join(topDirName, value));
+      var info = _getNegInfo(toList, toNegList, fullValue);
+
       info[0].add(Glob(info[1],
           recursive: GlobExt.isRecursive(info[1]),
           caseSensitive: isCaseSensitive));
