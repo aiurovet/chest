@@ -398,7 +398,7 @@ class Scanner {
             '...matching against ${isTake ? 'take' : 'skip'}-regex: ${regex.pattern}');
       }
 
-      var hasDir = regex.pattern.contains(PathExt._separatorPosixEscaped);
+      var hasDir = regex.pattern.contains(PathExt.separatorPosixEscaped);
 
       var isMatch =
           (hasDir ? regex.hasMatch(filePath) : regex.hasMatch(fileName));

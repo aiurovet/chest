@@ -13,11 +13,15 @@ extension PathExt on p.Context {
 
   /// Escaped directory separator - POSIX
   ///
-  static const _separatorPosixEscaped = r'\/';
+  static const separatorPosixEscaped = r'\/';
 
   /// Escaped directory separator - Windows
   ///
-  static const _separatorWindowsEscaped = r'\\';
+  static const separatorWindowsEscaped = r'\\';
+
+  /// A regex to filter hidden files
+  ///
+  static final RegExp _rexHidden = RegExp(r'(^|[\/\\])\.[^\.\/\\]');
 
   /// Fix [aPath] by replacing every Posix or Windows separator with the current one
   ///
@@ -76,13 +80,11 @@ extension PathExt on p.Context {
   ///
   bool get isCaseSensitive => (separator == separatorPosix);
 
-  /// Check whether [aPath] represents a hidden file or directory
-  /// (i.e. [aPath] contains a sub-dir or filename starting with a dot)
-  /// Ideally, [aPath] should be a full path to avoid possible side
-  /// effects from . and ..
+  /// Check whether [aPath] represents a hidden file or directory:
+  /// i.e. [aPath] contains a sub-dir or a filename starting with
+  /// a dot
   ///
-  bool isHidden(String aPath) =>
-      (aPath.contains(separator + '.') || (aPath[0] == '.'));
+  bool isHidden(String aPath) => _rexHidden.hasMatch(aPath);
 
   /// Check whether the file system is POSIX-compliant
   ///
@@ -96,7 +98,7 @@ extension PathExt on p.Context {
     } else if (aPath.isEmpty || (separator == separatorPosix)) {
       return aPath;
     } else if (isEscaped) {
-      return aPath.replaceAll(_separatorWindowsEscaped, _separatorPosixEscaped);
+      return aPath.replaceAll(separatorWindowsEscaped, separatorPosixEscaped);
     } else {
       return aPath.replaceAll(separatorWindows, separatorPosix);
     }
