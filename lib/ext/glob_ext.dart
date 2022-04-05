@@ -8,6 +8,14 @@ import 'package:glob/glob.dart';
 import 'package:chest/ext/path_ext.dart';
 
 extension GlobExt on Glob {
+  /// A pattern to list any file system element
+  ///
+  static final _anyPattern = r'*';
+
+  /// A separator between the drive name and the rest of the path
+  ///
+  static final _driveSeparator = r':';
+
   /// A pattern to locate glob patterns
   ///
   static final _isGlobPatternRegex =
@@ -20,8 +28,8 @@ extension GlobExt on Glob {
 
   /// Convert [pattern] string to a proper glob object considering the file system [fs]
   ///
-  static Glob fromFileSystemPattern(String? pattern, FileSystem fs) {
-    var patternEx = ((pattern == null) || pattern.isEmpty ? '*' : pattern);
+  static Glob fromFileSystemPattern(FileSystem fs, String? pattern) {
+    var patternEx = ((pattern == null) || pattern.isEmpty ? _anyPattern : pattern);
 
     var filter = Glob(fs.path.adjust(patternEx),
         context: fs.path,
@@ -44,22 +52,46 @@ extension GlobExt on Glob {
   /// Split [this].pattern in to a plan directory and a glob sub-path like:
   /// 'ab/cd*/efgh/\*\*.ijk' => 'ab', 'cd*/efgh/**.ijk'
   ///
-  List<String> split(FileSystem fs) {
-    if (pattern.isEmpty || !pattern.contains(fs.path.separator)) {
-      return ['', pattern];
+  static List<String> list(FileSystem fs, {String? pattern, bool followLinks = true}) {
+    var rootAndPattern = toRootAndPattern(fs, pattern);
+
+    var glob = fromFileSystemPattern(fs, rootAndPattern[1]);
+    glob.listFileSystem(fs, root: rootAndPattern[0], followLinks: followLinks);
+
+    return [];
+  }
+
+  /// Split [this].pattern in to a plan directory and a glob sub-path like:
+  /// 'ab/cd*/efgh/\*\*.ijk' => 'ab', 'cd*/efgh/**.ijk'
+  ///
+  static List<String> toRootAndPattern(FileSystem fs, String? pattern) {
+    if ((pattern == null) || pattern.isEmpty) {
+      return ['', _anyPattern];
     }
 
-    var globPos = _isGlobPatternRegex.firstMatch(pattern)?.start ?? -1;
-    var subPat = (globPos < 0 ? pattern : pattern.substring(0, globPos));
+    var patternEx = fs.path.adjust(pattern);
+
+    if (!patternEx.contains(fs.path.separator)) {
+      return ['', patternEx];
+    }
+
+    var globPos = _isGlobPatternRegex.firstMatch(patternEx)?.start ?? -1;
+    var subPat = (globPos < 0 ? patternEx : patternEx.substring(0, globPos));
     var lastSepPos = subPat.lastIndexOf(fs.path.separator);
 
     if (lastSepPos < 0) {
-      return ['', pattern];
+      return ['', patternEx];
     }
 
-    return [
-      pattern.substring(0, lastSepPos),
-      pattern.substring(lastSepPos + 1),
-    ];
+    var extraLen = ((lastSepPos == 0) || (patternEx[lastSepPos - 1] == _driveSeparator) ? 1 : 0);
+
+    var root = patternEx.substring(0, lastSepPos + extraLen);
+    subPat = patternEx.substring(lastSepPos + 1);
+
+    if (subPat.isEmpty) {
+      subPat = _anyPattern;
+    }
+
+    return [root, subPat];
   }
 }

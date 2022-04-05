@@ -38,7 +38,7 @@ class Scanner {
         _options.takeFileRegexList.isEmpty) {
       execContentFromStdin();
     } else {
-      await execEachFileFromList();
+      await execEachFileFromPatterns();
     }
 
     if (_options.isCount) {
@@ -79,7 +79,7 @@ class Scanner {
 
   /// Read and filter the list of files defined by options, then process each of those
   ///
-  Future execEachFileFromList() async {
+  Future execEachFileFromPatterns() async {
     var dirNameMap = <String, bool>{};
 
     if (_logger.isVerbose) {
@@ -90,7 +90,7 @@ class Scanner {
     // pick up of all files in those directories and optionally, below
     //
     for (var takeFileGlob in _options.takeFileGlobList) {
-      var dirName = takeFileGlob.split(_fs)[0];
+      var dirName = GlobExt.toRootAndPattern(_fs, takeFileGlob.pattern)[0];
 
       if (_logger.isVerbose) {
         _logger
