@@ -20,6 +20,27 @@ void main() {
     var sep = fs.path.separator;
 
     group('Glob - ${Helper.getFileSystemStyleName(fs)} -', () {
+      test('fromFileSystemPattern - null', () {
+        var g = GlobExt.fromFileSystemPattern(null, fs);
+        expect(g.pattern, '*');
+        expect(g.recursive, false);
+        expect(g.caseSensitive, fs.path.isCaseSensitive);
+      });
+      test('fromFileSystemPattern - empty', () {
+        var g = GlobExt.fromFileSystemPattern('', fs);
+        expect(g.pattern, '*');
+        expect(g.recursive, false);
+        expect(g.caseSensitive, fs.path.isCaseSensitive);
+      });
+      test('fromFileSystemPattern - actual path with recursiveness', () {
+        var g = GlobExt.fromFileSystemPattern('Abc${sep}De$sep**.txt', fs);
+
+print('*** DBG: g.pattern: ${g.pattern}');
+
+        expect(g.pattern.startsWith('Abc${sep}De$sep**.txt{'), true);
+        expect(g.recursive, true);
+        expect(g.caseSensitive, fs.path.isCaseSensitive);
+      });
       test('isGlobPattern - null', () {
         expect(GlobExt.isGlobPattern(null), false);
       });
@@ -39,19 +60,19 @@ void main() {
         expect(GlobExt.isGlobPattern('dir${sep}abc.{def,gh}'), true);
       });
       test('isRecursive - empty', () {
-        expect(GlobExt.isRecursive(''), false);
+        expect(GlobExt.isRecursiveGlobPattern(''), false);
       });
       test('isRecursive - #1', () {
-        expect(GlobExt.isRecursive('abc*.def'), false);
+        expect(GlobExt.isRecursiveGlobPattern('abc*.def'), false);
       });
       test('isRecursive - #2', () {
-        expect(GlobExt.isRecursive('abc**x.def'), true);
+        expect(GlobExt.isRecursiveGlobPattern('abc**x.def'), true);
       });
       test('isRecursive - #3', () {
-        expect(GlobExt.isRecursive('**${sep}abc*.def'), true);
+        expect(GlobExt.isRecursiveGlobPattern('**${sep}abc*.def'), true);
       });
       test('isRecursive - #4', () {
-        expect(GlobExt.isRecursive('xy**${sep}abc*.def'), true);
+        expect(GlobExt.isRecursiveGlobPattern('xy**${sep}abc*.def'), true);
       });
       test('split - #1', () {
         var parts = Glob('x').split(fs);
@@ -89,24 +110,6 @@ void main() {
           expect(parts[0], 'c:sub-dir');
           expect(parts[1], '*abc*.def');
         }
-      });
-      test('toGlob - null', () {
-        var g = GlobExt.toGlob(null, fs);
-        expect(g.pattern, '*');
-        expect(g.recursive, false);
-        expect(g.caseSensitive, fs.path.isCaseSensitive);
-      });
-      test('toGlob - empty', () {
-        var g = GlobExt.toGlob('', fs);
-        expect(g.pattern, '*');
-        expect(g.recursive, false);
-        expect(g.caseSensitive, fs.path.isCaseSensitive);
-      });
-      test('toGlob - actual path with recursiveness', () {
-        var g = GlobExt.toGlob('Abc${sep}De$sep**.txt', fs);
-        expect(g.pattern, 'Abc/De/**.txt{,/**}');
-        expect(g.recursive, true);
-        expect(g.caseSensitive, fs.path.isCaseSensitive);
       });
     });
   });

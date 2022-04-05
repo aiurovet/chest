@@ -21,9 +21,9 @@ extension PathExt on p.Context {
 
   /// A regex to filter hidden files
   ///
-  static final RegExp _rexHidden = RegExp(r'(^|[\/\\])\.[^\.\/\\]');
+  static final RegExp _isHiddenRegex = RegExp(r'(^|[\/\\])\.[^\.\/\\]');
 
-  /// Fix [aPath] by replacing every Posix or Windows separator with the current one
+  /// Fix [aPath] by replacing every Posix or Windows separator with the current OS-specific one
   ///
   String adjust(String? aPath) {
     if ((aPath == null) || aPath.isEmpty) {
@@ -84,7 +84,7 @@ extension PathExt on p.Context {
   /// i.e. [aPath] contains a sub-dir or a filename starting with
   /// a dot
   ///
-  bool isHidden(String aPath) => _rexHidden.hasMatch(aPath);
+  bool isHidden(String aPath) => _isHiddenRegex.hasMatch(aPath);
 
   /// Check whether the file system is POSIX-compliant
   ///

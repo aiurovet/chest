@@ -365,7 +365,7 @@ $appName -d "\${HOME}/Projects/chest/app" -ifiles '**.{gz,zip}' -e 3 -nocontent
       var info = _getNegInfo(toList, toNegList, fullValue);
 
       info[0].add(Glob(info[1],
-          recursive: GlobExt.isRecursive(info[1]),
+          recursive: GlobExt.isRecursiveGlobPattern(info[1]),
           caseSensitive: isCaseSensitive));
     }
     if (isTake) {
