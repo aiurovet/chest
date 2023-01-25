@@ -1,18 +1,17 @@
 // Copyright (c) 2022, Alexander Iurovetski
 // All rights reserved under MIT license (see LICENSE file)
-
+//
 import 'dart:io';
-import 'package:chest/register_services.dart';
-import 'package:thin_logger/thin_logger.dart';
-
 import 'package:chest/options.dart';
 import 'package:chest/scanner.dart';
+import 'package:chest/register_services.dart';
+import 'package:thin_logger/thin_logger.dart';
 
 /// The main application class
 ///
 class Chest {
-  // Dependency injection
-  //
+  /// Dependency injection
+  ///
   final _logger = services.get<Logger>();
   final _options = services.get<Options>();
   final _scanner = services.get<Scanner>();
@@ -23,27 +22,26 @@ class Chest {
 
   /// The processor
   ///
-  Future exec(List<String> args) async {
+  Future<bool> exec(List<String> args) async {
     await _options.parse(args);
-    await _scanner.exec();
+    return await _scanner.exec();
   }
 
   /// The application entry point
   ///
   static Future main(List<String> args) async {
+    late final Chest app;
+
     var isOK = false;
 
-    registerServices();
-
-    var app = Chest();
-
     try {
-      await app.exec(args);
-      isOK = true;
+      registerServices();
+      app = Chest();
+      isOK = await app.exec(args);
     } on Error catch (e, stackTrace) {
-      isOK = app.onError(e.toString(), stackTrace);
+      app.onError(e.toString(), stackTrace);
     } on Exception catch (e, stackTrace) {
-      isOK = app.onError(e.toString(), stackTrace);
+      app.onError(e.toString(), stackTrace);
     }
 
     exit(isOK ? 0 : 1);
@@ -51,25 +49,23 @@ class Chest {
 
   /// The error handler
   ///
-  bool onError(String errMsg, StackTrace stackTrace) {
+  void onError(String errMsg, StackTrace stackTrace) {
     if (errMsg.isEmpty) {
-      return false;
-    } else {
-      var errDecorRE = RegExp(r'^(Exception[\:\s]*)+', caseSensitive: false);
-      errMsg = errMsg.replaceFirst(errDecorRE, '');
-
-      if (errMsg.isEmpty || _logger.isQuiet) {
-        return false;
-      }
-
-      var errDtl = (_logger.level >= Logger.levelVerbose
-          ? '\n\n' + stackTrace.toString()
-          : '');
-      errMsg = '\n*** ERROR: $errMsg$errDtl\n';
-
-      _logger.error(errMsg);
-
-      return false;
+      return;
     }
+
+    var errDecorRE = RegExp(r'^(Exception[\:\s]*)+', caseSensitive: false);
+    errMsg = errMsg.replaceFirst(errDecorRE, '');
+
+    if (errMsg.isEmpty || _logger.isQuiet) {
+      return;
+    }
+
+    var errDtl = (_logger.level >= Logger.levelVerbose
+        ? '\n\n$stackTrace'
+        : '');
+    errMsg = '\n*** ERROR: $errMsg$errDtl\n';
+
+    _logger.error(errMsg);
   }
 }

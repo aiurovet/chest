@@ -21,7 +21,7 @@ void main() async {
     group('Scanner - ${Helper.getFileSystemStyleName(fs)} -', () {
       var options = services.get<Options>();
       test('parse', () async {
-        await options.parse(['-e', '1..2']);
+        await options.parse(['-e', '1,2']);
         expect(options.min, 1);
         expect(options.max, 2);
       });

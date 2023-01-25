@@ -5,10 +5,14 @@
   "version": "0.2.0",
   "configurations": [
     { "name": "Ad-hoc", "request": "launch", "type": "dart", "program": "bin/main.dart",
-      "args": [ "-expect", "..694", "-files", "**.dart", ] },
-    { "name": "Count app files", "request": "launch", "type": "dart", "program": "bin/main.dart",
-      "args": [ "-dir", ".", "-ifiles", "app/**.{gz,zip}", "-expect", "3", "-nocontent" ] },
-    { "name": "Usage", "request": "launch", "type": "dart", "program": "bin/main.dart",
+      "args": [ "-files", "**.dart", "-regex", "-i", "Return|Glob", "-or", "-plain", "Result", "-and", "-regex", "x", "-format", "p:t", ] },
+    { "name": "Count files", "request": "launch", "type": "dart", "program": "bin/main.dart",
+      "args": [ "-dir", "app", "-files", "**.{gz,zip}", "-e", "3", "-format", "c:p" ] },
+    { "name": "Grep 1", "request": "launch", "type": "dart", "program": "bin/main.dart",
+      "args": [ "-dir", "/home/ra/Projects/dart/parse_args", "-files", "README.md", "-regex", "^[\\s]*-", ] },
+    { "name": "Grep 2", "request": "launch", "type": "dart", "program": "bin/main.dart",
+      "args": [ "-files", "/home/ra/Projects/dart/chest/**.dart", "-mp", "lines = ", ] },
+    { "name": "Help", "request": "launch", "type": "dart", "program": "bin/main.dart",
       "args": [ "-?", ] },
   ]
 }

@@ -3,415 +3,421 @@
 
 import 'dart:convert';
 import 'dart:io';
-import 'package:chest/register_services.dart';
-import 'package:chest/ext/glob_ext.dart';
-import 'package:chest/ext/path_ext.dart';
-import 'package:chest/options.dart';
+import 'package:chest/chest_match.dart';
+import 'package:chest/printer.dart';
 import 'package:file/file.dart';
+import 'package:file_ext/file_ext.dart';
 import 'package:glob/glob.dart';
+import 'package:chest/register_services.dart';
+import 'package:chest/options.dart';
+import 'package:parse_args/parse_args.dart';
 import 'package:thin_logger/thin_logger.dart';
 
 /// A class to scan files or stdin, filter strings and optionally, count those
 ///
 class Scanner {
-  /// The actual number of matched lines
+  /// The way to output result
   ///
-  int count = 0;
+  Printer get printer => _printer;
+  late final Printer _printer;
+
+  // Private: line separator
+  //
+  static const _newLine = StdinExt.newLine;
 
   // Dependency injection
   //
-  final _fs = services.get<FileSystem>();
+  final _fileSystem = services.get<FileSystem>();
   final _lineSplitter = services.get<LineSplitter>();
   final _logger = services.get<Logger>();
   final _options = services.get<Options>();
 
-  /// The constructor
+  /// Default constructor
   ///
   Scanner();
 
   /// The execution start point
   ///
-  Future exec() async {
-    if (_options.isTakeFileListFromStdin) {
-      await execEachFileFromStdin();
-    } else if (_options.takeFileGlobList.isEmpty &&
-        _options.takeFileRegexList.isEmpty) {
-      execContentFromStdin();
+  Future<bool> exec() async {
+    _printer = _options.printer;
+
+    var count = 0;
+    var hasFiles = _options.globs.isNotEmpty;
+
+    if (hasFiles) {
+      count = await execEachFileInGlobList();
+    } else if (_options.isXargs) {
+      count = await execEachFileInStdin();
     } else {
-      await execEachFileFromPatterns();
+      count = await execStdin();
     }
 
-    if (_options.isCount) {
-      var isSuccess = ((count >= _options.min) &&
-          ((_options.max < 0) || (count <= _options.max)));
+    final max = _options.max;
+    final min = _options.min;
 
-      var isMin = (_options.max < 0);
-      var isEqu = (_options.max == _options.min);
-
-      var details = (isMin
-          ? '$count (actual) >= ${_options.min} (min)'
-          : isEqu
-              ? '$count (actual) == ${_options.min} (expected)'
-              : '${_options.min} (min) <= $count (actual) <= ${_options.max} (max)');
-
-      _logger.out(
-          '${Options.appName}: ${isSuccess ? 'succeeded' : 'failed'}: $details');
-    }
-  }
-
-  /// Read content from stdin line by line, filter those and, optionally, count
-  ///
-  void execContentFromStdin() {
-    if (_logger.isVerbose) {
-      _logger.verbose('Scanning the content of stdin');
-    }
-
-    for (;;) {
-      var line = stdin.readLineSync(retainNewlines: false)?.trim();
-
-      if (line == null) {
-        break;
+    if ((min < 0) && (max < 0)) {
+      if (_options.isCount) {
+        _printer.out(count: count);
       }
-
-      execLine(line, '');
+      return true;
     }
+
+    var isSuccess = ((count >= min) && ((max < 0) || (count <= max)));
+
+    var isMin = (max < 0);
+    var isEqu = (max == min);
+
+    var details = (isMin
+        ? '$count (actual) >= $min (min)'
+        : isEqu
+            ? '$count (actual) == $min (expected)'
+            : '$min (min) <= $count (actual) <= $max (max)');
+
+    _logger.info(
+        '${Options.appName}: ${isSuccess ? 'succeeded' : 'failed'}: $details');
+
+    return isSuccess;
   }
 
   /// Read and filter the list of files defined by options, then process each of those
   ///
-  Future execEachFileFromPatterns() async {
-    var dirNameMap = <String, bool>{};
-
+  Future<int> execEachFile(Glob glob) async {
     if (_logger.isVerbose) {
-      _logger.verbose('Scanning the content of files from the take-glob list');
+      _logger
+          .verbose('Scanning the content of files filtered by ${glob.pattern}');
     }
 
-    // Collect all distinct lowest level top directory names for the further
-    // pick up of all files in those directories and optionally, below
-    //
-    for (var takeFileGlob in _options.takeFileGlobList) {
-      var dirName = GlobExt.toRootAndPattern(_fs, takeFileGlob.pattern)[0];
+    var isHiddenAllowed = _options.isHiddenAllowed;
+    var entities = glob.listFileSystem(_fileSystem);
+    var curDirName = _fileSystem.path.current;
+    var count = 0;
+
+    await for (var entity in entities) {
+      var path = entity.path;
+      path = _fileSystem.path.normalize(
+          _fileSystem.path.isAbsolute(path) ? path : _fileSystem.path.join(curDirName, path));
+
+      if (!isHiddenAllowed && _fileSystem.path.basename(path).startsWith('.')) {
+        continue;
+      }
 
       if (_logger.isVerbose) {
-        _logger
-            .verbose('Getting top directory of the take-glob "$takeFileGlob"');
+        _logger.verbose('Checking "$path" is a file');
       }
 
-      if (dirName == '.') {
-        dirName = '';
-      }
-
-      if (_logger.isVerbose) {
-        _logger.verbose('...dir: "$dirName"');
-      }
-
-      var wasRecursive = dirNameMap[dirName];
-      var isRecursive = takeFileGlob.recursive;
-
-      if ((wasRecursive == null) || (!wasRecursive && isRecursive)) {
-        if (_logger.isVerbose) {
-          _logger.verbose(
-              '...adding the dir with${isRecursive ? '' : 'out'} recursive scan');
-        }
-        dirNameMap[dirName] = isRecursive;
-      }
-    }
-
-    var isAll = _options.isAll;
-
-    // Loop through every lowest level top directory name
-    //
-    for (var key in dirNameMap.keys) {
-      var topDirName =
-          (key.isEmpty ? _fs.currentDirectory.path : _fs.path.getFullPath(key));
-
-      if (!isAll && _fs.path.isHidden(topDirName)) {
-        break;
-      }
-
-      // Loop through all files in the current directory (and optionally, below)
+      // If not a file, get the next one
       //
-      var isRecursive = dirNameMap[key] ?? false;
-      var entities = _fs.directory(topDirName).list(recursive: isRecursive);
+      var stat = await entity.stat();
 
-      await for (var entity in entities) {
-        var filePath = entity.path;
-
-        if (!isAll && _fs.path.isHidden(filePath)) {
-          continue;
-        }
-
-        var fileName = _fs.path.basename(filePath);
-
+      if (stat.type != FileSystemEntityType.file) {
         if (_logger.isVerbose) {
-          _logger.verbose('Validating the path "$filePath"');
+          _logger.verbose('...not a file - skipping');
         }
-
-        // If not a file, get the next one
-        //
-        var stat = await entity.stat();
-
-        if (stat.type != FileSystemEntityType.file) {
-          if (_logger.isVerbose) {
-            _logger.verbose('...not a file - skipping');
-          }
-          continue;
-        }
-
-        // Match the current path against take- and skip-patterns and process the file in case of success
-        //
-        var isValid = isFilePathMatchedByGlobList(
-                filePath, fileName, _options.takeFileGlobList) &&
-            isFilePathMatchedByRegexList(
-                filePath, fileName, _options.takeFileRegexList) &&
-            !isFilePathMatchedByGlobList(
-                filePath, fileName, _options.skipFileGlobList) &&
-            !isFilePathMatchedByRegexList(
-                filePath, fileName, _options.skipFileRegexList);
-
-        if (isValid) {
-          await execFile(filePath, isCheckRequired: false);
-        }
+        continue;
       }
+
+      count += await execFile(path, isCheckRequired: false);
     }
+
+    return count;
   }
 
   /// Read and filter the list of files from stdin, then process each of those
   ///
-  Future execEachFileFromStdin() async {
+  Future<int> execEachFileInGlobList() async {
     if (_logger.isVerbose) {
-      _logger.verbose(
-          'Scanning the content of files with the paths obtained from stdin');
+      _logger.verbose('Executing all files listed matching the glob list');
     }
 
-    // Loop through all file paths in stdin
-    //
-    for (;;) {
-      var filePath = stdin.readLineSync(retainNewlines: false)?.trim();
+    var count = 0;
+    var flags = FileSystemExt.followLinks;
 
-      if (filePath == null) {
-        break;
-      }
-      if (filePath.isEmpty) {
-        continue;
-      }
-
-      var fileName = _fs.path.basename(filePath);
-
-      if (_logger.isVerbose) {
-        _logger.verbose('Validating the path "$filePath"');
-      }
-
-      // Match the current path against skip patterns and process the file in case of success
-      //
-      var isValid = !isFilePathMatchedByGlobList(
-              filePath, fileName, _options.skipFileGlobList) &&
-          !isFilePathMatchedByRegexList(
-              filePath, fileName, _options.skipFileRegexList);
-
-      if (isValid) {
-        await execFile(filePath, isCheckRequired: true);
-      }
+    if (_options.isHiddenAllowed) {
+      flags = flags | FileSystemExt.allowHidden;
     }
+
+    await _fileSystem.forEachEntity(
+      roots: _options.roots,
+      filters: _options.globs,
+      type: FileSystemEntityType.file,
+      flags: flags,
+      entityHandler: (fileSystem, entity, stat) async {
+        if (entity != null) {
+          count += await execFile(entity.path);
+        }
+        return true;
+      },
+      exceptionHandler: (fileSystem, entity, stat, e, stackTrace) async {
+        if (entity != null) {
+          _logger.error('Failed processing "${entity.path}": ${e.toString()}');
+        } else {
+          _logger.error(e.toString());
+        }
+        return true;
+      });
+
+    return count;
   }
 
-  /// Check the file defined by [filePath] exists if [isCheckRequired] is set,
-  /// then process that file: read it line by line, filter those which are
-  /// expected and, optionally, count those, then match it aagins given range
+  /// Read and filter the list of files from stdin, then process each of those
   ///
-  Future execFile(String filePath, {bool isCheckRequired = false}) async {
-    if (_options.isPathsOnly) {
-      if (_options.isCount) {
-        ++count;
-      } else {
-        _logger.out(filePath);
+  Future<int> execEachFileInStdin() async {
+    if (_logger.isVerbose) {
+      _logger.verbose('Scanning the content of files listed in stdin');
+    }
+
+    var count = 0;
+
+    await stdin.forEachLine(handler: (line) async {
+      count += await execEachFile(GlobExt.create(_fileSystem, line));
+      return true;
+    });
+
+    return count;
+  }
+
+  /// Check the file defined by [filePath] exists if [isCheckRequired] is set.
+  /// Then process the file: read it line by line filtering those through the
+  /// patterns and, optionally, count matches.
+  ///
+  Future<int> execFile(String filePath, {bool isCheckRequired = false}) async {
+    if (!_options.isContent) {
+      if (!_options.isCount) {
+        _printer.out(path: filePath);
       }
-      return;
+      return 1;
     }
 
     if (_logger.isVerbose) {
       _logger.verbose('Scanning the file "$filePath"');
     }
 
-    var file = _fs.file(filePath);
+    var file = _fileSystem.file(filePath);
 
-    if (!isCheckRequired || await file.exists()) {
-      var lines =
-          file.openRead().transform(utf8.decoder).transform(_lineSplitter);
-
-      await for (var line in lines) {
-        execLine(line, filePath);
-      }
-    } else {
+    if (isCheckRequired && !(await file.exists())) {
       throw Exception('File not found: "${file.path}"');
     }
+
+    var lines =
+        file.openRead().transform(utf8.decoder).transform(_lineSplitter);
+
+    var count = 0;
+
+    count += await execFileLines(filePath, lines);
+
+    if (_logger.isVerbose) {
+      _logger.verbose('...count: $count');
+    }
+
+    if (_options.isCount) {
+      _printer.out(path: filePath, count: count);
+    }
+
+    return (count > 0 ? 1 : 0);
   }
 
-  /// Filter the given [line] and either print it (possibly, prefixed by [filePath]) or count
+  /// Read the whole content of [filePath] and print all matching details
   ///
-  bool execLine(String line, String filePath) {
+  Future<int> execFileLines(String filePath, Stream<String> lines) async {
+    if (!_options.isMultiLine) {
+      var count = 0;
+
+      await for (var line in lines) {
+        count += execLine(filePath, line);
+      }
+
+      return count;
+    }
+
+    var content = '';
+    var lineStarts = <int>[];
+    var end = 0;
+
+    await for (var line in lines) {
+      if (end > 0) {
+        content += _newLine;
+      }
+
+      content += line;
+
+      lineStarts.add(end);
+      end += line.length + 1;
+    }
+
+    lineStarts.add(content.length);
+
+    return execMultiLine(filePath, content, lineStarts);
+  }
+
+  /// Check single [line] and print details if matched
+  ///
+  int execLine(String filePath, String line) {
     if (_logger.isVerbose) {
       _logger.verbose('Validating the line: $line');
     }
 
-    var lineLC = line.toLowerCase();
-    var isValid = true;
-
-    // Matching against every plain take-text
-    //
-    for (var plain in _options.takeTextPlainList) {
+    if (!_options.isContent) {
       if (_logger.isVerbose) {
-        _logger.verbose('...matching against plain take-text: $plain');
+        _logger.verbose('...counting only');
       }
+      return 1;
+    }
 
-      var isCaseSensitive = (plain[0] == Options.charSensitive);
-      isValid = (isCaseSensitive ? line : lineLC).contains(plain.substring(1));
+    final hasMatch = (firstMatch(line) != null);
 
-      if (!isValid) {
+    if (_logger.isVerbose) {
+      _logger.verbose('...${hasMatch ? '' : 'not '} matched');
+    }
+
+    if (!hasMatch) {
+      return 0;
+    }
+
+    if (!_options.isCount) {
+      _printer.out(path: filePath, text: line);
+    }
+
+    return 1;
+  }
+
+  /// Check whole [content] and print all matching details
+  ///
+  int execMultiLine(String filePath, String content, List<int> lineStarts) {
+    if (_logger.isVerbose) {
+      _logger.verbose('Validating the content of: $filePath');
+    }
+
+    if (!_options.isContent) {
+      if (_logger.isVerbose) {
+        _logger.verbose('...counting only');
+      }
+      return 1;
+    }
+
+    ChestMatch? match;
+    var lineEnd = -1;
+    var lastLineStartNo = -1;
+    final lineStartCount = lineStarts.length - 1;
+    final length = content.length;
+
+    for (var start = 0; (start < length); start = lineEnd) {
+      final match = firstMatch(content, start);
+
+      if (match == null) {
         break;
       }
-    }
 
-    if (!isValid) {
-      if (_logger.isVerbose) {
-        _logger.verbose('...not matched - skipping');
-      }
-      return false;
-    }
-
-    // Matching against every plain skip-text
-    //
-    for (var plain in _options.skipTextPlainList) {
-      if (_logger.isVerbose) {
-        _logger.verbose('...matching against plain skip-text: $plain');
+      for (; lastLineStartNo < lineStartCount; lastLineStartNo++) {
+        if (lineStarts[lastLineStartNo] > start) {
+          --lastLineStartNo;
+          break;
+        }
       }
 
-      var isCaseSensitive = (plain[0] == Options.charSensitive);
-      isValid = !(isCaseSensitive ? line : lineLC).contains(plain.substring(1));
+      lineEnd = lineStarts[lastLineStartNo + 1];
 
-      if (!isValid) {
+      if (lineEnd <= 0) {
         break;
       }
-    }
 
-    if (!isValid) {
-      if (_logger.isVerbose) {
-        _logger.verbose('...matched - skipping');
+      if (!_options.isCount) {
+        _printer.out(
+            path: filePath,
+            text: content.substring(lineStarts[lastLineStartNo], lineEnd));
       }
-      return false;
-    }
-
-    // Matching against every take-regex
-    //
-    for (var regex in _options.takeTextRegexList) {
-      if (_logger.isVerbose) {
-        _logger.verbose('...matching against take-regex: ${regex.pattern}');
-      }
-
-      isValid = regex.hasMatch(line);
-
-      if (!isValid) {
-        break;
-      }
-    }
-
-    if (!isValid) {
-      if (_logger.isVerbose) {
-        _logger.verbose('...not matched - skipping');
-      }
-      return false;
-    }
-
-    // Matching against every skip-regex
-    //
-    for (var regex in _options.skipTextRegexList) {
-      if (_logger.isVerbose) {
-        _logger.verbose('...matching against skip-regex: $regex');
-      }
-
-      isValid = !regex.hasMatch(line);
-
-      if (!isValid) {
-        break;
-      }
-    }
-
-    if (!isValid) {
-      if (_logger.isVerbose) {
-        _logger.verbose('...matched - skipping');
-      }
-      return false;
     }
 
     if (_logger.isVerbose) {
-      _logger.verbose('...matched');
+      _logger.verbose('...${match == null ? 'not ' : ''} matched');
+    }
+
+    if (match == null) {
+      return 0;
+    }
+
+    return 1;
+  }
+
+  /// Read content from stdin line by line, filter those and, optionally, count
+  ///
+  Future<int> execStdin() async {
+    var count = 0;
+
+    if (_logger.isVerbose) {
+      _logger.verbose('Scanning the content of stdin');
+    }
+
+    if (_options.isMultiLine) {
+      var content = '';
+      var lineStarts = <int>[];
+      var end = 0;
+
+      await stdin.forEachLine(handlerSync: (line) {
+        if (end > 0) {
+          content += _newLine;
+        }
+
+        content += line;
+
+        lineStarts.add(end);
+        end += line.length + 1;
+
+        return true;
+      });
+
+      lineStarts.add(content.length);
+
+      count = execMultiLine('', content, lineStarts);
+    } else {
+      await stdin.forEachLine(handlerSync: (line) {
+        count += execLine('', line);
+        return true;
+      });
     }
 
     if (_options.isCount) {
-      ++count;
-    } else {
-      _logger.out(filePath.isEmpty ? line : '$filePath:$line');
+      _printer.out(count: count);
     }
 
-    return true;
+    return count;
   }
 
-  /// Match [filePath] or [fileName] against every glob pattern in [globList]
-  /// (stop when the first no-match encountered)
+  /// Check [input] and print details if matched
   ///
-  bool isFilePathMatchedByGlobList(
-      String filePath, String fileName, List<Glob> globList) {
-    var isTake = (globList == _options.takeFileGlobList);
+  ChestMatch? firstMatch(String input, [int start = 0]) {
+    ChestMatch? match;
+    var inputLC = (_options.hasCaseInsensitive ? input.toLowerCase() : '');
 
-    for (var glob in globList) {
-      if (_logger.isVerbose) {
-        _logger.verbose(
-            '...matching against ${isTake ? 'take' : 'skip'}-glob: ${glob.pattern}');
-      }
-
-      var hasDir = glob.pattern.contains(PathExt.separatorPosix);
-
-      var isMatch = (hasDir ? glob.matches(filePath) : glob.matches(fileName));
-      var isValid = (isTake == isMatch);
-
-      if (!isValid) {
+    for (var patternList in _options.patterns) {
+      for (var pattern in patternList) {
         if (_logger.isVerbose) {
-          _logger.verbose('...${isTake ? 'not ' : ''}matched - skipping');
+          if (pattern.regex != null) {
+            _logger.verbose('...matching against regex: ${pattern.regex}');
+          } else {
+            _logger.verbose('...matching against plain text: ${pattern.plain}');
+          }
         }
-        return isMatch;
+
+        match = pattern.firstMatch(pattern.caseSensitive ? input : inputLC,
+            start: start);
+
+        if (_logger.isVerbose) {
+          _logger.verbose('......${(match == null ? 'not ' : '')}matched');
+        }
+
+        if (match == null) {
+          break;
+        }
+      }
+      if (match != null) {
+        break;
       }
     }
 
-    return isTake;
-  }
-
-  /// Match [filePath] or [fileName] against every regular expression pattern in [regexList]
-  /// (stop when the first no-match encountered)
-  ///
-  bool isFilePathMatchedByRegexList(
-      String filePath, String fileName, List<RegExp> regexList) {
-    var isTake = (regexList == _options.takeFileRegexList);
-
-    for (var regex in regexList) {
-      if (_logger.isVerbose) {
-        _logger.verbose(
-            '...matching against ${isTake ? 'take' : 'skip'}-regex: ${regex.pattern}');
-      }
-
-      var hasDir = regex.pattern.contains(PathExt.separatorPosixEscaped);
-
-      var isMatch =
-          (hasDir ? regex.hasMatch(filePath) : regex.hasMatch(fileName));
-      var isValid = (isTake == isMatch);
-
-      if (!isValid) {
-        if (_logger.isVerbose) {
-          _logger.verbose('...${isTake ? 'not ' : ''}matched - skipping');
-        }
-        return isMatch;
-      }
+    if (_logger.isVerbose) {
+      _logger.verbose('...${match == null ? 'not ' : ''}matched');
     }
 
-    return isTake;
+    return match;
   }
 }
