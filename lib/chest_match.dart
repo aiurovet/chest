@@ -1,4 +1,4 @@
-// Copyright (c) 2022, Alexander Iurovetski
+// Copyright (c) 2022-23, Alexander Iurovetski
 // All rights reserved under MIT license (see LICENSE file)
 //
 
@@ -26,6 +26,8 @@ class ChestMatch {
   ChestMatch([this.start = -1, int end = -1]) {
     if ((start < 0) && (start > end)) {
       this.end = start;
+    } else {
+      this.end = end;
     }
   }
 }

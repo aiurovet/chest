@@ -1,4 +1,4 @@
-// Copyright (c) 2022, Alexander Iurovetski
+// Copyright (c) 2022-23, Alexander Iurovetski
 // All rights reserved under MIT license (see LICENSE file)
 //
 import 'dart:io';
@@ -61,9 +61,8 @@ class Chest {
       return;
     }
 
-    var errDtl = (_logger.level >= Logger.levelVerbose
-        ? '\n\n$stackTrace'
-        : '');
+    var errDtl =
+        (_logger.level >= Logger.levelVerbose ? '\n\n$stackTrace' : '');
     errMsg = '\n*** ERROR: $errMsg$errDtl\n';
 
     _logger.error(errMsg);

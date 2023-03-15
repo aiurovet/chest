@@ -1,4 +1,4 @@
-// Copyright (c) 2022, Alexander Iurovetski
+// Copyright (c) 2022-23, Alexander Iurovetski
 // All rights reserved under MIT license (see LICENSE file)
 //
 import 'dart:io';
@@ -6,7 +6,6 @@ import 'dart:io';
 import 'package:chest/chest_pattern.dart';
 import 'package:chest/printer.dart';
 import 'package:chest/register_services.dart';
-import 'package:file/file.dart';
 import 'package:glob/glob.dart';
 import 'package:parse_args/parse_args.dart';
 import 'package:thin_logger/thin_logger.dart';
@@ -33,6 +32,11 @@ class Options {
   ///
   bool get hasCaseInsensitive => _hasCaseInsensitive;
   var _hasCaseInsensitive = false;
+
+  /// Flag indicating there is at least one case-insensitive pattern
+  ///
+  bool get hasPlain => _hasPlain;
+  var _hasPlain = false;
 
   /// Flag indicating we just count the matches
   ///
@@ -87,7 +91,6 @@ class Options {
 
   // Dependency injection
   //
-  final _fileSystem = services.get<FileSystem>();
   final _logger = services.get<Logger>();
 
   /// The constructor
@@ -97,12 +100,13 @@ class Options {
   /// The main method to parse CLI arguments
   ///
   Future parse(List<String> args) async {
-    var subFlags = 'i,and,or,not';
+    var subFlags = 'i,icase,and,or,not';
 
     var optDefStr = '''
       |?,h,help|q,quiet|v,verbose|a,all
       |c,count|d,dir::|e,exp,expect:,:
-      |m,multiline|o,format:|f,files::
+      |m,multi,multiline|n,nocontent
+      |o,out,format:|f,file,files::
       |p,plain::>$subFlags,r,regex
       |r,regex::>$subFlags,p,plain
       |x,xargs
@@ -120,48 +124,37 @@ class Options {
     _isHiddenAllowed = opts.isSet('a');
     _roots.addAll(opts.getStrValues('d'));
 
-    _setExpectAndCount(opts.getStrValues('e'), opts.isSet('c'));
+    _setExpectAndIsCount(opts.getStrValues('e'), opts.isSet('c'));
 
     _globs.addAll(opts.getGlobValues('f'));
     _isMultiLine = opts.isSet('m');
+    _isContent = !opts.isSet('n');
     _printer = Printer(opts.getStrValue('o'));
-    _setPatterns(opts.getStrValues('p'), opts.getStrValues('r'));
     _isXargs = opts.isSet('x');
-    _isContent = !_isCount && _printer.showContent && _patterns.isNotEmpty;
-
-    if (_globs.length == 1) {
-      if (await _fileSystem.file(_globs[0].pattern).exists()) {
-        final hasContent = (_printer.format == Printer.defaultFormatContent);
-        final hasCount = (_printer.format == Printer.defaultFormatCount);
-
-        if (hasContent || hasCount) {
-          _printer.isPathAllowed = false;
-        }
-      }
-    }
+    _setPatterns(opts.getStrValues('p'), opts.getStrValues('r'));
   }
 
   /// Get min and max count expected
   ///
-  void _setExpectAndCount(List<String> expect, bool isCount) {
-    if (expect.isNotEmpty) {
-      _isCount = true;
-      _min = int.tryParse(expect[0]) ?? 0;
-      _max = int.tryParse(expect[expect.length - 1]) ?? -1;
-    } else {
+  void _setExpectAndIsCount(List<String> expect, bool isCount) {
+    if (expect.isEmpty) {
       _isCount = isCount;
       _min = -1;
       _max = -1;
+    } else {
+      _isCount = true;
+      _min = int.tryParse(expect[0]) ?? 0;
+      _max = int.tryParse(expect[expect.length - 1]) ?? -1;
     }
   }
 
   /// Create and assign plain (non-regex) patterns
   ///
   void _setPatterns(List<String> plainPatterns, List<String> regexPatterns) {
-    var caseSensitive = true;
-    var negative = false;
+    var isCaseSensitive = true;
+    var isNegative = false;
+    var isRegular = false;
     var patternList = <ChestPattern>[];
-    var regular = false;
 
     var values = <String>[...plainPatterns, ...regexPatterns];
     var patternNo = -1;
@@ -169,26 +162,26 @@ class Options {
 
     for (var value in values) {
       if ((++patternNo) == plainCount) {
-        regular = true;
+        isRegular = true;
       }
       switch (value) {
         case '-i':
         case '-icase':
-          caseSensitive = false;
+          isCaseSensitive = false;
           _hasCaseInsensitive = true;
           continue;
         case '+i':
         case '+icase':
-          caseSensitive = true;
+          isCaseSensitive = true;
           continue;
         case '-and':
         case '+and':
           continue;
         case '-not':
-          negative = true;
+          isNegative = true;
           continue;
         case '+not':
-          negative = false;
+          isNegative = false;
           continue;
         case '-or':
           if (patternList.isNotEmpty) {
@@ -200,19 +193,19 @@ class Options {
           continue;
         case '-p':
         case '-plain':
-          regular = false;
+          isRegular = false;
           continue;
         case '+p':
         case '+plain':
-          regular = true;
+          isRegular = true;
           continue;
         case '-r':
         case '-regex':
-          regular = true;
+          isRegular = true;
           continue;
         case '+r':
         case '+regex':
-          regular = false;
+          isRegular = false;
           continue;
         default:
           if (value.isEmpty) {
@@ -221,13 +214,17 @@ class Options {
           break;
       }
 
-      _addPattern(patternList, value,
-          caseSensitive: caseSensitive,
-          multiLine: _isMultiLine,
-          negative: negative,
-          regular: regular);
+      if (!_isMultiLine && !isRegular) {
+        _hasPlain = true;
+      }
 
-      negative = false;
+      _addPattern(patternList, value,
+          caseSensitive: isCaseSensitive,
+          multiLine: _isMultiLine,
+          negative: isNegative,
+          regular: isRegular);
+
+      isNegative = false;
     }
 
     if (patternList.isNotEmpty) {
@@ -239,7 +236,7 @@ class Options {
   ///
   Never printUsage([String? error]) {
     _logger.error('''
-$appName $appVersion (c) 2022 Alexander Iurovetski
+$appName $appVersion (c) 2022-23 Alexander Iurovetski
 
 CHEck STrings: command-line utility to read text from files or stdin
 or from files listed in stdin, then to filter the content. Filtration
@@ -251,47 +248,49 @@ USAGE:
 
 $appName [OPTIONS]
 
--?,-h[elp]        - this help screen
--q[uiet]          - no output
--v[erbose]        - detailed output
--a[ll]            - scan all files including the hidden ones
-                    (when a filename starts with '.')
--c[ount]          - show the number of matched lines or blocks
-                    (for multi-line match) rather than the actual
-                    text; will be turned on if -expect specified
--d[ir] DIRs       - one or more directories as bases for glob
-                    patterns, see -f[iles]
--e[xp[ect]] RANGE - expected minimum number of matching lines or
-                    blocks (turns -c[ount] on):
-                    3        - exactly 3
-                    2,5      - between 2 and 5
-                    2,       - 2 or more
-                    ,5       - up to 5
--m[ulti[[-]line]] - multi-line search (applies to all patterns)
--o,-format FMT    - output format with these placeholders:
-                    c        - number of matching lines or blocks
-                    l        - sequential line number(s)
-                    n        - file name
-                    p        - file path
-                    t        - text (content) of the line(s)
--p[lain] TEXTs    - filter lines matching or not matching plain
-                    one or more text (literal) case-sensitive
-                    patterns, has sub-options:
-                    -i[case] - case-insensitive on
-                    +i[case] - case-insensitive off
-                    -and     - match prev pattern AND this one
-                    -not     - next pattern should NOT be found
-                    -or      - match prev patterns OR this one
-                    -r[egex] - switch to -regex
--r[egex] REGEXes  - similar to -plain but using regular expressions
-                    rather than plain text strings, has a sub-option
-                    -plain to switch back to plain text (literal)
--f[iles] GLOBs    - one or more glob patterns as separate arguments,
-                    case-insensitive for Windows, and case-sensitive
-                    for POSIX (Linux, macOS)
--x[args]          - similar to -f[iles], but takes glob patterns
-                    from stdin (one per line) rather than from the
-                    arguments; in this case, -f[iles] ignored
+-?,-h[elp]          - this help screen
+-q[uiet]            - no output
+-v[erbose]          - detailed output
+-a[ll]              - scan all files including the hidden ones
+                      (when a filename starts with '.')
+-c[ount]            - show the number of matched lines or blocks
+                      (for multi-line match) rather than the actual
+                      text; will be turned on if -expect specified
+-d[ir] DIRs         - one or more directories as bases for glob
+                      patterns, see -f[iles]
+-e[xp[ect]] RANGE   - expected minimum number of matching lines or
+                      blocks (turns -c[ount] on):
+                      3        - exactly 3
+                      2,5      - between 2 and 5
+                      2,       - 2 or more
+                      ,5       - up to 5
+-m[ulti[[-]line]]   - multi-line search (applies to all patterns)
+-n[ocontent]        - perform filtering on file paths or names
+                      rather than those content
+-o,-out,-format FMT - output format with these placeholders:
+                      c        - number of matching lines or blocks
+                      l        - sequential line number(s)
+                      n        - file name
+                      p        - file path
+                      t        - text (content) of the line(s)
+-p[lain] TEXTs      - filter lines matching or not matching plain
+                      one or more text (literal) case-sensitive
+                      patterns, has sub-options:
+                      -i[case] - case-insensitive on
+                      +i[case] - case-insensitive off
+                      -and     - match prev pattern AND this one
+                      -not     - next pattern should NOT be found
+                      -or      - match prev patterns OR this one
+                      -r[egex] - switch to -regex
+-r[egex] REGEXes    - similar to -plain but using regular expressions
+                      rather than plain text strings, has a sub-option
+                      -plain to switch back to plain text (literal)
+-f[ile[s]] GLOBs    - one or more glob patterns as separate arguments,
+                      case-insensitive for Windows, and case-sensitive
+                      for POSIX (Linux, macOS)
+-x[args]            - similar to -f[iles], but takes glob patterns
+                      from stdin (one per line) rather than from the
+                      arguments; in this case, -f[iles] ignored
 
 Option names are case-insensitive and dash-insensitive: you can use
 any number of dashes in the front, in the middle or at the back of
@@ -315,7 +314,7 @@ $appName -d "\${HOME}/Projects/chest/app" -files '**.{gz,zip}' -e 3 -o "c:p"
   static void _addPattern(List<ChestPattern> to, String value,
       {bool caseSensitive = true,
       bool multiLine = false,
-      negative = false,
+      bool negative = false,
       bool regular = false}) {
     if (multiLine && !regular) {
       to.add(ChestPattern(RegExp.escape(value).replaceAll(' ', r'[\s]*'),

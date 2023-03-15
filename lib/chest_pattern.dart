@@ -1,4 +1,4 @@
-// Copyright (c) 2022, Alexander Iurovetski
+// Copyright (c) 2022-23, Alexander Iurovetski
 // All rights reserved under MIT license (see LICENSE file)
 //
 
@@ -54,24 +54,30 @@ class ChestPattern {
     regex = null;
   }
 
-  /// Get start and end of the pattern first occurrence
-  /// In case of plain case-insensitive match, [input]
-  /// is expected to be lowercased already
+  /// Get start and end of the pattern's first occurrence in the form of
+  /// [ChestMatch].\
+  /// In case of plain case-insensitive match, the search strting is
+  /// expected to be lowercased already.\
+  ///\
+  /// Known issue: if the search string is huge, its substring is up to doubling the
+  /// memory usage (only in case of the regular expresssion pattern)
   ///
-  ChestMatch? firstMatch(String input, {bool canLower = false, int start = 0}) {
+  ChestMatch? firstMatch(String input, [int start = 0]) {
     var end = -1;
 
-    if (regex != null) {
-      final match = regex!.firstMatch(input);
-      start = match?.start ?? -1;
-      end = match?.end ?? -1;
+    if (regex == null) {
+      start = input.indexOf(plain, start);
+      end = start + plain.length;
     } else {
-      if (caseSensitive || !canLower) {
-        start = input.indexOf(plain, start);
+      var inputEx = (start == 0 ? input : input.substring(start));
+      final match = regex!.firstMatch(inputEx);
+
+      if (match == null) {
+        start = -1;
       } else {
-        start = input.toLowerCase().indexOf(plain, start);
+        end = start + match.end;
+        start += match.start;
       }
-      end = input.length;
     }
 
     if (negative) {

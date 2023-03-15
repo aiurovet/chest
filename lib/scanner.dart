@@ -1,17 +1,17 @@
-// Copyright (c) 2022, Alexander Iurovetski
+// Copyright (c) 2022-23, Alexander Iurovetski
 // All rights reserved under MIT license (see LICENSE file)
 
-import 'dart:convert';
 import 'dart:io';
 import 'package:chest/chest_match.dart';
+import 'package:chest/options.dart';
 import 'package:chest/printer.dart';
+import 'package:chest/register_services.dart';
 import 'package:file/file.dart';
 import 'package:file_ext/file_ext.dart';
 import 'package:glob/glob.dart';
-import 'package:chest/register_services.dart';
-import 'package:chest/options.dart';
-import 'package:parse_args/parse_args.dart';
+import 'package:loop_visitor/loop_visitor.dart';
 import 'package:thin_logger/thin_logger.dart';
+import 'package:utf_ext/utf_ext.dart';
 
 /// A class to scan files or stdin, filter strings and optionally, count those
 ///
@@ -21,20 +21,29 @@ class Scanner {
   Printer get printer => _printer;
   late final Printer _printer;
 
-  // Private: line separator
-  //
-  static const _newLine = StdinExt.newLine;
-
   // Dependency injection
   //
   final _fileSystem = services.get<FileSystem>();
-  final _lineSplitter = services.get<LineSplitter>();
   final _logger = services.get<Logger>();
   final _options = services.get<Options>();
 
   /// Default constructor
   ///
   Scanner();
+
+  /// The execution start point
+  ///
+  String _getDetails(int actual, int min, int max) {
+    if (max < 0) {
+      return '$actual (actual) >= $min (min)';
+    }
+
+    if (max == min) {
+      return '$actual (actual) == $min (expected)';
+    }
+
+    return '$min (min) <= $actual (actual) <= $max (max)';
+  }
 
   /// The execution start point
   ///
@@ -45,11 +54,11 @@ class Scanner {
     var hasFiles = _options.globs.isNotEmpty;
 
     if (hasFiles) {
-      count = await execEachFileInGlobList();
+      count = await execEachFileInList(_options.roots, null, _options.globs);
     } else if (_options.isXargs) {
       count = await execEachFileInStdin();
     } else {
-      count = await execStdin();
+      count = await execContentInStdin();
     }
 
     final max = _options.max;
@@ -62,61 +71,33 @@ class Scanner {
       return true;
     }
 
-    var isSuccess = ((count >= min) && ((max < 0) || (count <= max)));
+    final isSuccess = ((count >= min) && ((max < 0) || (count <= max)));
+    final details = _getDetails(count, min, max);
+    final status = (isSuccess ? 'succeeded' : 'failed');
 
-    var isMin = (max < 0);
-    var isEqu = (max == min);
-
-    var details = (isMin
-        ? '$count (actual) >= $min (min)'
-        : isEqu
-            ? '$count (actual) == $min (expected)'
-            : '$min (min) <= $count (actual) <= $max (max)');
-
-    _logger.info(
-        '${Options.appName}: ${isSuccess ? 'succeeded' : 'failed'}: $details');
+    _logger.info('${Options.appName} : $status : $details');
 
     return isSuccess;
   }
 
-  /// Read and filter the list of files defined by options, then process each of those
+  /// Read content from stdin line by line, filter those and, optionally, count
   ///
-  Future<int> execEachFile(Glob glob) async {
-    if (_logger.isVerbose) {
-      _logger
-          .verbose('Scanning the content of files filtered by ${glob.pattern}');
-    }
-
-    var isHiddenAllowed = _options.isHiddenAllowed;
-    var entities = glob.listFileSystem(_fileSystem);
-    var curDirName = _fileSystem.path.current;
+  Future<int> execContentInStdin() async {
     var count = 0;
 
-    await for (var entity in entities) {
-      var path = entity.path;
-      path = _fileSystem.path.normalize(
-          _fileSystem.path.isAbsolute(path) ? path : _fileSystem.path.join(curDirName, path));
+    if (_logger.isVerbose) {
+      _logger.verbose('Scanning the content of ${UtfStdin.name}');
+    }
 
-      if (!isHiddenAllowed && _fileSystem.path.basename(path).startsWith('.')) {
-        continue;
-      }
-
-      if (_logger.isVerbose) {
-        _logger.verbose('Checking "$path" is a file');
-      }
-
-      // If not a file, get the next one
-      //
-      var stat = await entity.stat();
-
-      if (stat.type != FileSystemEntityType.file) {
-        if (_logger.isVerbose) {
-          _logger.verbose('...not a file - skipping');
-        }
-        continue;
-      }
-
-      count += await execFile(path, isCheckRequired: false);
+    if (_options.isMultiLine) {
+      var pileup = StringBuffer();
+      await stdin.readUtfAsString(pileup: pileup);
+      count = execMultiLine('', pileup.toString());
+    } else {
+      await stdin.readUtfAsLines(onRead: (params) {
+        count += execLine('', params.currentNo, params.current!);
+        return VisitResult.take;
+      });
     }
 
     return count;
@@ -124,9 +105,12 @@ class Scanner {
 
   /// Read and filter the list of files from stdin, then process each of those
   ///
-  Future<int> execEachFileInGlobList() async {
+  Future<int> execEachFileInList(
+      List<String>? roots, Glob? filter, List<Glob>? filters) async {
     if (_logger.isVerbose) {
-      _logger.verbose('Executing all files listed matching the glob list');
+      final f = filters ?? [filter ?? Glob('*')];
+      final r = roots == null || roots.isEmpty ? ['.'] : roots;
+      _logger.verbose('Processing $f under $r');
     }
 
     var count = 0;
@@ -137,24 +121,23 @@ class Scanner {
     }
 
     await _fileSystem.forEachEntity(
-      roots: _options.roots,
-      filters: _options.globs,
-      type: FileSystemEntityType.file,
-      flags: flags,
-      entityHandler: (fileSystem, entity, stat) async {
-        if (entity != null) {
-          count += await execFile(entity.path);
-        }
-        return true;
-      },
-      exceptionHandler: (fileSystem, entity, stat, e, stackTrace) async {
-        if (entity != null) {
-          _logger.error('Failed processing "${entity.path}": ${e.toString()}');
-        } else {
-          _logger.error(e.toString());
-        }
-        return true;
-      });
+        roots: roots,
+        filter: filter,
+        filters: filters,
+        type: FileSystemEntityType.file,
+        flags: flags,
+        onEntity: (fileSystem, entity, stat) async {
+          if (entity != null) {
+            count += await execFile(entity.path);
+          }
+          return checkEnough(count);
+        },
+        onException: (fileSystem, entity, stat, ex, stackTrace) async {
+          final path = (entity == null ? '' : ' in "${entity.path}"');
+          _logger.error('Error$path: $ex');
+
+          return VisitResult.skip;
+        });
 
     return count;
   }
@@ -168,9 +151,10 @@ class Scanner {
 
     var count = 0;
 
-    await stdin.forEachLine(handler: (line) async {
-      count += await execEachFile(GlobExt.create(_fileSystem, line));
-      return true;
+    await stdin.readUtfAsLines(onRead: (params) async {
+      final filter = _fileSystem.path.toGlob(params.current);
+      count += await execEachFileInList(null, filter, null);
+      return checkEnough(count);
     });
 
     return count;
@@ -198,12 +182,18 @@ class Scanner {
       throw Exception('File not found: "${file.path}"');
     }
 
-    var lines =
-        file.openRead().transform(utf8.decoder).transform(_lineSplitter);
-
     var count = 0;
 
-    count += await execFileLines(filePath, lines);
+    if (_options.isMultiLine) {
+      var pileup = StringBuffer();
+      await file.readUtfAsString(pileup: pileup);
+      count += execMultiLine(filePath, pileup.toString());
+    } else {
+      await file.readUtfAsLines(onRead: (params) {
+        count += execLine(filePath, params.currentNo, params.current!);
+        return VisitResult.skip;
+      });
+    }
 
     if (_logger.isVerbose) {
       _logger.verbose('...count: $count');
@@ -216,114 +206,87 @@ class Scanner {
     return (count > 0 ? 1 : 0);
   }
 
-  /// Read the whole content of [filePath] and print all matching details
-  ///
-  Future<int> execFileLines(String filePath, Stream<String> lines) async {
-    if (!_options.isMultiLine) {
-      var count = 0;
-
-      await for (var line in lines) {
-        count += execLine(filePath, line);
-      }
-
-      return count;
-    }
-
-    var content = '';
-    var lineStarts = <int>[];
-    var end = 0;
-
-    await for (var line in lines) {
-      if (end > 0) {
-        content += _newLine;
-      }
-
-      content += line;
-
-      lineStarts.add(end);
-      end += line.length + 1;
-    }
-
-    lineStarts.add(content.length);
-
-    return execMultiLine(filePath, content, lineStarts);
-  }
-
   /// Check single [line] and print details if matched
   ///
-  int execLine(String filePath, String line) {
+  int execLine(String filePath, int lineNo, String line) {
     if (_logger.isVerbose) {
       _logger.verbose('Validating the line: $line');
     }
 
-    if (!_options.isContent) {
-      if (_logger.isVerbose) {
-        _logger.verbose('...counting only');
-      }
-      return 1;
-    }
+    var count = 0;
+    var isCount = _printer.showCount;
+    var start = 0;
 
-    final hasMatch = (firstMatch(line) != null);
+    do {
+      final match = firstMatch(line, start);
+
+      if (match == null) {
+        break;
+      }
+
+      ++count;
+
+      if ((_options.min < 0) || (count >= _options.min)) {
+        if ((_options.min < 0) || (count >= _options.min)) {}
+      }
+
+      start = match.end;
+    } while (isCount);
 
     if (_logger.isVerbose) {
-      _logger.verbose('...${hasMatch ? '' : 'not '} matched');
+      _logger.verbose('...${count > 0 ? '' : 'not '} matched');
     }
 
-    if (!hasMatch) {
-      return 0;
+    if (count > 0) {
+      _printer.out(path: filePath, count: count, lineNo: lineNo, text: line);
     }
 
-    if (!_options.isCount) {
-      _printer.out(path: filePath, text: line);
-    }
-
-    return 1;
+    return count;
   }
 
   /// Check whole [content] and print all matching details
   ///
-  int execMultiLine(String filePath, String content, List<int> lineStarts) {
+  int execMultiLine(String filePath, String content) {
     if (_logger.isVerbose) {
       _logger.verbose('Validating the content of: $filePath');
     }
 
-    if (!_options.isContent) {
-      if (_logger.isVerbose) {
-        _logger.verbose('...counting only');
-      }
-      return 1;
+    var lineStarts = getLineStarts(filePath, content);
+
+    if (lineStarts.isEmpty) {
+      return 0;
     }
 
     ChestMatch? match;
-    var lineEnd = -1;
-    var lastLineStartNo = -1;
-    final lineStartCount = lineStarts.length - 1;
+    final lineStartCount = lineStarts.length;
     final length = content.length;
+    var next = -1;
 
-    for (var start = 0; (start < length); start = lineEnd) {
+    for (var start = 0; start < length; start = next) {
       final match = firstMatch(content, start);
 
       if (match == null) {
         break;
       }
 
-      for (; lastLineStartNo < lineStartCount; lastLineStartNo++) {
-        if (lineStarts[lastLineStartNo] > start) {
-          --lastLineStartNo;
-          break;
-        }
-      }
+      final startLineNo = findLineStartIndex(
+          content, match.start, false, lineStarts, lineStartCount);
+      final nextLineNo = findLineStartIndex(
+          content, match.end, true, lineStarts, lineStartCount);
 
-      lineEnd = lineStarts[lastLineStartNo + 1];
+      start = lineStarts[startLineNo];
+      next = lineStarts[nextLineNo];
 
-      if (lineEnd <= 0) {
+      if ((start <= 0) || (next <= 0)) {
         break;
       }
 
       if (!_options.isCount) {
         _printer.out(
             path: filePath,
-            text: content.substring(lineStarts[lastLineStartNo], lineEnd));
+            count: 1,
+            lineNo: startLineNo + 1,
+            text: content.substring(start, next - 1));
       }
     }
 
@@ -338,55 +301,30 @@ class Scanner {
     return 1;
   }
 
-  /// Read content from stdin line by line, filter those and, optionally, count
+  /// Find the start of the line in [input] before or after position [from]
   ///
-  Future<int> execStdin() async {
-    var count = 0;
-
-    if (_logger.isVerbose) {
-      _logger.verbose('Scanning the content of stdin');
+  int findLineStartIndex(
+      String input, int from, bool after, List<int> lineStarts, int count) {
+    for (var i = 1; i < count; i++) {
+      if (lineStarts[i] > from) {
+        return (after ? i : i - 1);
+      }
     }
 
-    if (_options.isMultiLine) {
-      var content = '';
-      var lineStarts = <int>[];
-      var end = 0;
-
-      await stdin.forEachLine(handlerSync: (line) {
-        if (end > 0) {
-          content += _newLine;
-        }
-
-        content += line;
-
-        lineStarts.add(end);
-        end += line.length + 1;
-
-        return true;
-      });
-
-      lineStarts.add(content.length);
-
-      count = execMultiLine('', content, lineStarts);
-    } else {
-      await stdin.forEachLine(handlerSync: (line) {
-        count += execLine('', line);
-        return true;
-      });
-    }
-
-    if (_options.isCount) {
-      _printer.out(count: count);
-    }
-
-    return count;
+    return -1;
   }
 
   /// Check [input] and print details if matched
   ///
   ChestMatch? firstMatch(String input, [int start = 0]) {
     ChestMatch? match;
-    var inputLC = (_options.hasCaseInsensitive ? input.toLowerCase() : '');
+    String inputLC;
+
+    if (_options.hasPlain && _options.hasCaseInsensitive) {
+      inputLC = input.toLowerCase();
+    } else {
+      inputLC = '';
+    }
 
     for (var patternList in _options.patterns) {
       for (var pattern in patternList) {
@@ -398,8 +336,8 @@ class Scanner {
           }
         }
 
-        match = pattern.firstMatch(pattern.caseSensitive ? input : inputLC,
-            start: start);
+        final inputEx = pattern.caseSensitive ? input : inputLC;
+        match = pattern.firstMatch(inputEx, start);
 
         if (_logger.isVerbose) {
           _logger.verbose('......${(match == null ? 'not ' : '')}matched');
@@ -419,5 +357,43 @@ class Scanner {
     }
 
     return match;
+  }
+
+  /// Make the list of positions wheer every line starts
+  ///
+  List<int> getLineStarts(String filePath, String content) {
+    var lineStarts = <int>[];
+
+    if (content.isEmpty) {
+      return lineStarts;
+    }
+
+    lineStarts.add(0);
+
+    var end = 0;
+
+    while (true) {
+      end = content.indexOf(UtfConst.lineBreak, end);
+
+      if (end < 0) {
+        break;
+      }
+
+      lineStarts.add(++end);
+    }
+
+    return lineStarts;
+  }
+
+  /// Check whether it's time to stop scanning or not
+  ///
+  VisitResult checkEnough(int actual) {
+    if ((_options.min < 0) || (actual >= _options.min)) {
+      if ((_options.max < 0) || (actual > _options.max)) {
+        return VisitResult.takeAndStop;
+      }
+    }
+
+    return VisitResult.take;
   }
 }
