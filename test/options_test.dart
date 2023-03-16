@@ -1,4 +1,4 @@
-// Copyright (c) 2022-23, Alexander Iurovetski
+// Copyright (c) 2022-2023, Alexander Iurovetski
 // All rights reserved under MIT license (see LICENSE file)
 
 import 'package:chest/register_services.dart';

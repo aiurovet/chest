@@ -1,4 +1,4 @@
-// Copyright (c) 2022-23, Alexander Iurovetski
+// Copyright (c) 2022-2023, Alexander Iurovetski
 // All rights reserved under MIT license (see LICENSE file)
 //
 
@@ -11,6 +11,10 @@ import 'package:utf_ext/utf_ext.dart';
 /// Class for the formatted output
 ///
 class Printer {
+  /// Const: RegExp to get data formatters
+  ///
+  static final _dataFormattersRE = RegExp('[$fstrAll]');
+
   /// Const: default separator
   ///
   static var defaultSeparator = ',';
@@ -19,46 +23,47 @@ class Printer {
   ///
   static const empty = '';
 
-  /// Const: format character
-  ///
-  static const formatChar = '%';
-
   /// Const: RegExp to break into fields
   ///
-  static final _formatParseRE =
-      RegExp('([^$formatChar]*)($formatChar.)([^$formatChar]*)');
+  static final _formatParseRE = RegExp(
+      '([^$fstrAll]*)(($fstrContent)|($fstrCount)|($fstrFileName)|($fstrLineNo)|($fstrMatchOnly)|($fstrPath))([^$fstrAll]*)', multiLine: true);
+
+  /// Const: all data formatters (ex. special characters)
+  ///
+  static const fstrAll =
+      '$fstrContent$fstrCount$fstrFileName$fstrLineNo$fstrMatchOnly$fstrPath';
 
   /// Const: formatter for the content text
   ///
-  static const fstrContent = '${formatChar}s';
+  static const fstrContent = 's';
 
   /// Const: formatter for the count
   ///
-  static const fstrCount = '${formatChar}c';
-
-  /// Const: formatter for the line break
-  ///
-  static const fstrLineBreak = '${formatChar}n';
-
-  /// Const: formatter for the line no
-  ///
-  static const fstrLineNo = '${formatChar}l';
+  static const fstrCount = 'c';
 
   /// Const: formatter for the file name
   ///
-  static const fstrName = '${formatChar}f';
-
-  /// Const: formatter for the file path
-  ///
-  static const fstrPath = '${formatChar}p';
-
-  /// Const: formatter for the percentage sign
-  ///
-  static const fstrPercent = '$formatChar$formatChar';
+  static const fstrFileName = 'f';
 
   /// Const: formatter for the line break
   ///
-  static const fstrTab = '${formatChar}t';
+  static const fstrLineBreak = r'\n';
+
+  /// Const: formatter for the line no
+  ///
+  static const fstrLineNo = 'l';
+
+  /// Const: formatter for the line no
+  ///
+  static const fstrMatchOnly = 'm';
+
+  /// Const: formatter for the file path
+  ///
+  static const fstrPath = 'p';
+
+  /// Const: formatter for the line break
+  ///
+  static const fstrTab = r'\t';
 
   /// Actual format to use
   ///
@@ -93,6 +98,11 @@ class Printer {
   ///
   bool get showLineNo => _showLineNo;
   var _showLineNo = false;
+
+  /// [format]-based flag: true = show the matched text rather than the whole line(s)
+  ///
+  bool get showMatchOnly => _showMatchOnly;
+  var _showMatchOnly = false;
 
   /// [format]-based flag: true = filename will be printed
   ///
@@ -159,6 +169,7 @@ class Printer {
 
         switch (currItem.fstr) {
           case fstrContent:
+          case fstrMatchOnly:
             value = line;
             break;
           case fstrCount:
@@ -167,7 +178,7 @@ class Printer {
           case fstrLineNo:
             value = lineNo?.toString();
             break;
-          case fstrName:
+          case fstrFileName:
             value = (hasPath ? _fileSystem.path.basename(path) : null);
             break;
           case fstrPath:
@@ -226,7 +237,8 @@ class Printer {
     _showCount = _format.contains(fstrCount);
     _showContent = _format.contains(fstrContent);
     _showLineNo = _format.contains(fstrLineNo);
-    _showName = _format.contains(fstrName);
+    _showMatchOnly = _format.contains(fstrMatchOnly);
+    _showName = _format.contains(fstrFileName);
     _showPath = _format.contains(fstrPath);
     _showNameOrPath = (_showName || _showPath);
   }
@@ -241,12 +253,10 @@ class Printer {
     final isFormat = ((format != null) && format.trim().isNotEmpty);
 
     _format = (isFormat ? format : getDefaultFormat())
-        .replaceAll(fstrPercent, '\x01')
         .replaceAll(fstrLineBreak, UtfConst.lineBreak)
-        .replaceAll(fstrTab, '\t')
-        .replaceAll('\x01', fstrPercent);
+        .replaceAll(fstrTab, '\t');
 
-    if (!_format.contains(formatChar)) {
+    if (!_dataFormattersRE.hasMatch(_format)) {
       defaultSeparator = _format;
       _format = getDefaultFormat();
     }
@@ -258,15 +268,27 @@ class Printer {
     _formatItems.clear();
 
     _format.replaceAllMapped(_formatParseRE, (match) {
+      String? fstr;
       var prefix = match.group(1) ?? empty;
-      var fstr = match.group(2) ?? empty;
-      var suffix = match.group(3) ?? empty;
+      final count = match.groupCount;
+
+      for (var i = 3; i < count; i++) {
+        final currFstr = match.group(i);
+
+        if ((currFstr != null) && currFstr.isNotEmpty) {
+          fstr = match.group(i) ?? '';
+        }
+      }
+
+      var suffix = match.group(count) ?? empty;
 
       final lastItemNo = _formatItems.length - 1;
       final lastItem = (lastItemNo < 0 ? null : _formatItems[lastItemNo]);
+      final hasLastFstr = ((lastItem == null) || lastItem.fstr.isNotEmpty);
+      final hasFstr = fstr?.isNotEmpty ?? false;
 
-      if ((lastItem == null) || lastItem.fstr.isNotEmpty || fstr.isNotEmpty) {
-        _formatItems.add(PrinterFormatItem(prefix, fstr, suffix));
+      if (hasLastFstr || hasFstr) {
+        _formatItems.add(PrinterFormatItem(prefix, fstr!, suffix));
       } else {
         lastItem.prefix += prefix;
         lastItem.suffix += suffix;

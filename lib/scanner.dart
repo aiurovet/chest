@@ -1,4 +1,4 @@
-// Copyright (c) 2022-23, Alexander Iurovetski
+// Copyright (c) 2022-2023, Alexander Iurovetski
 // All rights reserved under MIT license (see LICENSE file)
 
 import 'dart:io';
@@ -61,21 +61,21 @@ class Scanner {
       count = await execContentInStdin();
     }
 
-    final max = _options.max;
-    final min = _options.min;
+    final isSuccess = _isExpected(count);
 
-    if ((min < 0) && (max < 0)) {
-      if (_options.isCount) {
-        _printer.out(count: count);
-      }
-      return true;
+    if (!_options.isCount || _options.isContent) {
+      return isSuccess;
     }
 
-    final isSuccess = ((count >= min) && ((max < 0) || (count <= max)));
-    final details = _getDetails(count, min, max);
-    final status = (isSuccess ? 'succeeded' : 'failed');
+    if ((_options.min >= 0) || (_options.max >= 0)) {
+      final sep = Printer.defaultSeparator;
+      final details = sep + _getDetails(count, _options.min, _options.max);
+      final status = sep  + (isSuccess ? 'succeeded' : 'failed');
 
-    _logger.info('${Options.appName} : $status : $details');
+      _logger.info('${Options.appName}$status$details');
+    } else {
+      _printer.out(count: count);
+    }
 
     return isSuccess;
   }
@@ -96,7 +96,7 @@ class Scanner {
     } else {
       await stdin.readUtfAsLines(onRead: (params) {
         count += execLine('', params.currentNo, params.current!);
-        return VisitResult.take;
+        return VisitResult.skip;
       });
     }
 
@@ -130,7 +130,7 @@ class Scanner {
           if (entity != null) {
             count += await execFile(entity.path);
           }
-          return checkEnough(count);
+          return VisitResult.skip;
         },
         onException: (fileSystem, entity, stat, ex, stackTrace) async {
           final path = (entity == null ? '' : ' in "${entity.path}"');
@@ -154,7 +154,7 @@ class Scanner {
     await stdin.readUtfAsLines(onRead: (params) async {
       final filter = _fileSystem.path.toGlob(params.current);
       count += await execEachFileInList(null, filter, null);
-      return checkEnough(count);
+      return VisitResult.skip;
     });
 
     return count;
@@ -199,7 +199,7 @@ class Scanner {
       _logger.verbose('...count: $count');
     }
 
-    if (_options.isCount) {
+    if (_options.isCount && _isExpected(count)) {
       _printer.out(path: filePath, count: count);
     }
 
@@ -214,10 +214,9 @@ class Scanner {
     }
 
     var count = 0;
-    var isCount = _printer.showCount;
     var start = 0;
 
-    do {
+    while (true) {
       final match = firstMatch(line, start);
 
       if (match == null) {
@@ -225,19 +224,19 @@ class Scanner {
       }
 
       ++count;
-
-      if ((_options.min < 0) || (count >= _options.min)) {
-        if ((_options.min < 0) || (count >= _options.min)) {}
-      }
-
       start = match.end;
-    } while (isCount);
+
+      if (_printer.showMatchOnly) {
+        final text = line.substring(match.start, match.end);
+        _printer.out(path: filePath, lineNo: lineNo, text: text);
+      }
+    }
 
     if (_logger.isVerbose) {
       _logger.verbose('...${count > 0 ? '' : 'not '} matched');
     }
 
-    if (count > 0) {
+    if (!_options.isCount && !_printer.showMatchOnly && _isExpected(count)) {
       _printer.out(path: filePath, count: count, lineNo: lineNo, text: line);
     }
 
@@ -271,6 +270,14 @@ class Scanner {
 
       final startLineNo = findLineStartIndex(
           content, match.start, false, lineStarts, lineStartCount);
+
+      if (_printer.showMatchOnly) {
+        final text = content.substring(match.start, match.end);
+        _printer.out(path: filePath, lineNo: startLineNo, text: text);
+        next = match.end;
+        continue;
+      }
+
       final nextLineNo = findLineStartIndex(
           content, match.end, true, lineStarts, lineStartCount);
 
@@ -385,15 +392,17 @@ class Scanner {
     return lineStarts;
   }
 
-  /// Check whether it's time to stop scanning or not
+  /// Check the actual count is within the expected b0undaries
   ///
-  VisitResult checkEnough(int actual) {
-    if ((_options.min < 0) || (actual >= _options.min)) {
-      if ((_options.max < 0) || (actual > _options.max)) {
-        return VisitResult.takeAndStop;
-      }
+  bool _isExpected(int actual) {
+    if ((_options.min >= 0) && (actual < _options.min)) {
+      return false;
     }
 
-    return VisitResult.take;
+    if ((_options.max >= 0) && (actual > _options.max)) {
+      return false;
+    }
+
+    return (actual > 0);
   }
 }
