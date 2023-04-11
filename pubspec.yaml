@@ -17,7 +17,7 @@ dependencies:
   parse_args: ^0.13.1
   path: ^1.8.3
   thin_logger: ^0.2.0
-  utf_ext: ^0.1.9
+  utf_ext: ^0.2.2
 
 dev_dependencies:
   lints: ^2.0.1

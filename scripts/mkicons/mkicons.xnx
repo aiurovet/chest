@@ -47,6 +47,7 @@
         { "{dim}":   64, "{offset}":   8, },
         { "{dim}":   96, "{offset}":  12, },
         { "{dim}":  128, "{offset}":  16, },
+        { "{dim}":  192, "{offset}":  24, },
         { "{dim}":  256, "{offset}":  32, },
         { "{dim}":  512, "{offset}":  64, },
         { "{dim}": 1024, "{offset}": 128, },
@@ -59,12 +60,12 @@
       "{{-inp-}}": "{{-cur-dir-}}/{prj}.svg",
       "{sample}": "{{-cur-dir-}}/{icon-name}_{dim}x{dim}.svg",
 
-      "{{-if-}}": { '({dim} == 48) && ({look} == _dark) && ({sample} -fol {{-inp-}})': {
+      "{{-if-}}": { '({dim} == 192) && ({look} == _dark) && ({sample} -fol {{-inp-}})': {
         "{{-run-}}": '--expand "{{-inp-}}" "{sample}"',
       } },
 
       "{{-out-}}": "{{-cur-dir-}}/png/{icon-name}_{dim}x{dim}.png",
-      "{{-cmd-}}": '{svg2png} --window-size={dim},{dim} --screenshot={{-out-}} "file://{{-inp-}}"'
+      "{{-cmd-}}": "{svg2png}",
     },
 
     {
@@ -77,7 +78,8 @@
 
       "{{-if-}}": { '"${OS}" ==/i "linux"': {
         "{{-run-}}": [
-          '--move "{icon-pthp}_96x96.png" "{out-dir}/{icon-name}.png"'
+          '--move "{icon-pthp}_192x192.png" "{out-dir}/{icon-name}.png"',
+          //'{convert} "{out-dir}/{icon-name}.ico" "{icon-pthp}_16x16.png" "{icon-pthp}_24x24.png" "{icon-pthp}_32x32.png" "{icon-pthp}_48x48.png" "{icon-pthp}_256x256.png"',
         ]
       }, "{{-else-}}": { "{{-if-}}": { '"${OS}" ==/i "macos"': {
         "{png-dir-mac}": "{png-dir}.iconset",
@@ -99,7 +101,7 @@
         ]
       }, "{{-else-}}": { "{{-if-}}": { '"${OS}" ==/i "windows"': {
         "{{-run-}}": [
-          '{convert} "{icon-pthp}_16x16.png" "{icon-pthp}_24x24.png" "{icon-pthp}_32x32.png" "{icon-pthp}_48x48.png" "{icon-pthp}_256x256.png" "{out-dir}/{icon-name}.ico"',
+          'png2ico "{out-dir}/{icon-name}.ico" "{icon-pthp}_16x16.png" "{icon-pthp}_24x24.png" "{icon-pthp}_32x32.png" "{icon-pthp}_48x48.png" "{icon-pthp}_256x256.png"',
         ]
       } } } } } }
     },
