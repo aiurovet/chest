@@ -27,6 +27,20 @@ jobs:
 
       ################################################################################
 
+      - name: Installing rsvg-convert for Linux
+        if: runner.os == 'Linux'
+        run: sudo apt install librsvg2-bin
+
+      - name: Installing rsvg-convert for macOS
+        if: runner.os == 'macOS'
+        run: brew install librsvg
+
+      - name: Installing rsvg-convert for Windows
+        if: runner.os == 'Windows'
+        run: choco install -y rsvg-convert --no-progress
+
+      ################################################################################
+
       - name: Installing ImageMagick for Windows
         if: runner.os == 'Windows'
         run: |
