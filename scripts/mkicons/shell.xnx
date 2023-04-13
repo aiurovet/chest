@@ -4,10 +4,10 @@
     "{svg2png}": 'rsvg-convert "{{-inp-}}" > "{{-out-}}"',
 
     "{{-if-}}": { '("${OS}" ==/i "linux") || ("${OS}" ==/i "macos")': {
-      "{convert}": "convert",
+      "{im-convert}": "convert",
       "{sleep_0_5s}": "sleep 0.5s"
     }, "{{-else-}}": { "{{-if-}}": { '"${USER}" != ""': {
-      "{convert}": "magick convert",
+      "{im-convert}": "magick convert",
       "{sleep_0_5s}": "ping 127.0.0.1 -n 2 -w 500"
     } } } },
   }

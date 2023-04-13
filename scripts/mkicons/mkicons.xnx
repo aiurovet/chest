@@ -1,7 +1,6 @@
-// Generate icons for this application using itself
-// The file designed for runs primarily on Linux
-// Requires: Google Chrome as well as iconutil (macOS only) and ImageMagick's convert (Windows only)
-
+// Generates icons for this application using xnx
+// Requires: librsvg (all OSes) and ImageMagick's convert (Windows only)
+//
 {
   "{{-once-}}": {
     "{prj}": "$~1",
@@ -79,7 +78,6 @@
       "{{-if-}}": { '"${OS}" ==/i "linux"': {
         "{{-run-}}": [
           '--move "{icon-pthp}_192x192.png" "{out-dir}/{icon-name}.png"',
-          //'{convert} "{out-dir}/{icon-name}.ico" "{icon-pthp}_16x16.png" "{icon-pthp}_24x24.png" "{icon-pthp}_32x32.png" "{icon-pthp}_48x48.png" "{icon-pthp}_256x256.png"',
         ]
       }, "{{-else-}}": { "{{-if-}}": { '"${OS}" ==/i "macos"': {
         "{png-dir-mac}": "{png-dir}.iconset",
@@ -101,7 +99,7 @@
         ]
       }, "{{-else-}}": { "{{-if-}}": { '"${OS}" ==/i "windows"': {
         "{{-run-}}": [
-          'png2ico "{out-dir}/{icon-name}.ico" "{icon-pthp}_16x16.png" "{icon-pthp}_24x24.png" "{icon-pthp}_32x32.png" "{icon-pthp}_48x48.png" "{icon-pthp}_256x256.png"',
+          '{im-convert} "{out-dir}/{icon-name}.ico" "{icon-pthp}_16x16.png" "{icon-pthp}_24x24.png" "{icon-pthp}_32x32.png" "{icon-pthp}_48x48.png" "{icon-pthp}_256x256.png"',
         ]
       } } } } } }
     },
