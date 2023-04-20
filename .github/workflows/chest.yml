@@ -86,7 +86,7 @@ jobs:
       ################################################################################
 
       - name: Pushing the new binary to the version control
-        uses: EndBug/add-and-commit@v8
+        uses: EndBug/add-and-commit@v7
         with:
           message: 'Pushing the new binary back to the version control'
           add: 'bin/${{runner.os}}/* --force'
@@ -94,7 +94,7 @@ jobs:
       ################################################################################
 
       - name: Pushing the new application package back to the version control
-        uses: EndBug/add-and-commit@v8
+        uses: EndBug/add-and-commit@v7
         with:
           message: 'Pushing the new application package back to the version control'
           add: 'app/${{runner.os}}/* --force'
