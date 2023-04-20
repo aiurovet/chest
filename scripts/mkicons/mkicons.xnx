@@ -1,5 +1,6 @@
-// Generates icons for this application using xnx
-// Requires: librsvg (all OSes) and ImageMagick's convert (Windows only)
+// Generate icons for this application using itself
+// The file designed for runs primarily on Linux
+// Requires: librsvg or Google Chrome as well as iconutil (macOS only) and ImageMagick's convert (Windows only)
 //
 {
   "{{-once-}}": {
@@ -59,12 +60,12 @@
       "{{-inp-}}": "{{-cur-dir-}}/{prj}.svg",
       "{sample}": "{{-cur-dir-}}/{icon-name}_{dim}x{dim}.svg",
 
-      "{{-if-}}": { '({dim} == 192) && ({look} == _dark) && ({sample} -fol {{-inp-}})': {
+      "{{-if-}}": { '({dim} == 192) && ("{look}" == "_dark") && ({sample} -fol {{-inp-}})': {
         "{{-run-}}": '--expand "{{-inp-}}" "{sample}"',
       } },
 
       "{{-out-}}": "{{-cur-dir-}}/png/{icon-name}_{dim}x{dim}.png",
-      "{{-cmd-}}": "{svg2png}",
+      "{{-cmd-}}": '{svg2png}',
     },
 
     {
@@ -77,8 +78,14 @@
 
       "{{-if-}}": { '"${OS}" ==/i "linux"': {
         "{{-run-}}": [
-          '--move "{icon-pthp}_192x192.png" "{out-dir}/{icon-name}.png"',
-        ]
+          '--move "{icon-pthp}_192x192.png" "{out-dir}/{icon-name}.png"'
+        ],
+
+        // /* Uncomment the section below if you need to generate a PNG icon in {{-cur-dir-}} */
+
+        // "{{-if-}}": { '("{look}" == "") && ({sample} -fol {{-inp-}})': {
+        //   "{{-run-}}": '--copy "{icon-pthp}_128x128.png" "{{-cur-dir-}}"',
+        // } },
       }, "{{-else-}}": { "{{-if-}}": { '"${OS}" ==/i "macos"': {
         "{png-dir-mac}": "{png-dir}.iconset",
         "{{-run-}}": [
@@ -99,7 +106,7 @@
         ]
       }, "{{-else-}}": { "{{-if-}}": { '"${OS}" ==/i "windows"': {
         "{{-run-}}": [
-          '{im-convert} "{out-dir}/{icon-name}.ico" "{icon-pthp}_16x16.png" "{icon-pthp}_24x24.png" "{icon-pthp}_32x32.png" "{icon-pthp}_48x48.png" "{icon-pthp}_256x256.png"',
+          '{im-convert} "{icon-pthp}_16x16.png" "{icon-pthp}_24x24.png" "{icon-pthp}_32x32.png" "{icon-pthp}_48x48.png" "{icon-pthp}_256x256.png" "{out-dir}/{icon-name}.ico"',
         ]
       } } } } } }
     },
