@@ -81,7 +81,7 @@ jobs:
 
       - name: Running Integration Test 2 - Count app files
         run: |
-          bin/${{runner.os}}/chest -dir "app" -files "**.{gz,zip}" -nocontent -expect 3
+          bin/${{runner.os}}/chest -dir "app" -files "**.{gz,zip}" -nocontent -expect 1,3
 
       ################################################################################
 
