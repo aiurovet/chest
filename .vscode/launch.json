@@ -18,6 +18,12 @@
       "args": [ "-dir", "/home/ra/Projects/dart/parse_args", "-files", "README.md", "-regex", "^[\\s]*-" ] },
     { "name": "Grep Multiline", "request": "launch", "type": "dart", "program": "bin/main.dart",
       "args": [ "-files", "/home/ra/Projects/dart/chest/lib/scanner.dart", "-o=f:l:s", "-m", "-r=if[\\s]*\\(lineStarts\\.isEmpty\\)[^\\}]*}", ] },
+    { "name": "xnx-1", "request": "launch", "type": "dart", "program": "/home/ra/Projects/dart/chest/bin/main.dart", "cwd": "/home/ra/Projects/dart/xnx",
+      "args": [ "-expect=4", "-plain=\"version\": \"0.1.45\"", "-files=\"examples/setver_azx/*.json\"" ] },
+    { "name": "xnx-2", "request": "launch", "type": "dart", "program": "/home/ra/Projects/dart/chest/bin/main.dart", "cwd": "/home/ra/Projects/dart/xnx",
+      "args": [ "-expect=3", "-regex=\"Major\": 0,|\"Minor\": 1,|\"Patch\": 45", "-files=\"examples/setver_azx/task.json\"" ] },
+    { "name": "xnx-3", "request": "launch", "type": "dart", "program": "/home/ra/Projects/dart/chest/bin/main.dart", "cwd": "/home/ra/Projects/dart/xnx",
+      "args": [ "-expect=3", "-regex=\"Major\": 0,|\"Minor\": 1,|\"Patch\": 45", "-files=\"examples/setver_azx/task.json\"" ] },
     { "name": "Help", "request": "launch", "type": "dart", "program": "bin/main.dart",
       "args": [ "-?", ] },
   ]

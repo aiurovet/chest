@@ -33,20 +33,6 @@ class Scanner {
 
   /// The execution start point
   ///
-  String _getDetails(int actual, int min, int max) {
-    if (max < 0) {
-      return '$actual (actual) >= $min (min)';
-    }
-
-    if (max == min) {
-      return '$actual (actual) == $min (expected)';
-    }
-
-    return '$min (min) <= $actual (actual) <= $max (max)';
-  }
-
-  /// The execution start point
-  ///
   Future<bool> exec() async {
     _printer = _options.printer;
 
@@ -63,19 +49,10 @@ class Scanner {
 
     final isSuccess = _isExpected(count);
 
-    if (!_options.isCount || _options.isContent) {
-      return isSuccess;
-    }
-
-    if ((_options.min >= 0) || (_options.max >= 0)) {
-      final sep = Printer.defaultSeparator;
-      final details = sep + _getDetails(count, _options.min, _options.max);
-      final status = sep  + (isSuccess ? 'succeeded' : 'failed');
-
-      _logger.info('${Options.appName}$status$details');
-    } else {
+    if (_options.isCount && !_options.isContent) {
       _printer.out(count: count);
     }
+
 
     return isSuccess;
   }
@@ -199,11 +176,11 @@ class Scanner {
       _logger.verbose('...count: $count');
     }
 
-    if (_options.isCount && _isExpected(count)) {
+    if (_options.isCount) {
       _printer.out(path: filePath, count: count);
     }
 
-    return (count > 0 ? 1 : 0);
+    return (count > 0 ? (_options.isCount ? count : 1) : 0);
   }
 
   /// Check single [line] and print details if matched
@@ -236,7 +213,7 @@ class Scanner {
       _logger.verbose('...${count > 0 ? '' : 'not '} matched');
     }
 
-    if (!_options.isCount && !_printer.showMatchOnly && _isExpected(count)) {
+    if (!_options.isCount && !_printer.showMatchOnly) {
       _printer.out(path: filePath, count: count, lineNo: lineNo, text: line);
     }
 
@@ -403,6 +380,6 @@ class Scanner {
       return false;
     }
 
-    return (actual > 0);
+    return true;
   }
 }
