@@ -85,8 +85,12 @@ jobs:
 
       ################################################################################
 
-      - name: Pushing the new binary to the version control
+      - name: Pulling the latest changes
         run: git pull
+
+      ################################################################################
+
+      - name: Pushing the new binary to the version control
         uses: EndBug/add-and-commit@v9
         with:
           message: 'Pushing the new binary back to the version control'
@@ -95,7 +99,6 @@ jobs:
       ################################################################################
 
       - name: Pushing the new application package back to the version control
-        run: git pull
         uses: EndBug/add-and-commit@v9
         with:
           message: 'Pushing the new application package back to the version control'
