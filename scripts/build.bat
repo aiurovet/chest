@@ -81,10 +81,6 @@ echo Copying the executable file to the output directory
 copy /Y "%EXE%" "%OUT%"
 if errorlevel 1 exit /B 1
 
-echo Copying the version switcher to the output directory
-copy /Y scripts\set-as-current.bat "%OUT%"
-if errorlevel 1 exit /B 1
-
 echo Copying the change log, installation guide and license to the output directory
 copy /Y *.md "%OUT%"
 if errorlevel 1 exit /B 1
