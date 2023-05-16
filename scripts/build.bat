@@ -94,7 +94,7 @@ echo Creating the icons in the output directory
 if errorlevel 1 exit /B 1
 
 echo Creating and compressing the application package
-"%XNX%" --move --pack "%OUP%" "%PKG%.zip"
+"%XNX%" --move --pack "%OUP%\%PRJ%" "%PKG%.zip"
 
 @rem ***************************************************************************
 

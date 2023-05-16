@@ -89,7 +89,7 @@ echo "Creating the icons and moving those to the output directory"
 ################################################################################
 
 echo "Creating and compressing the application package"
-"${XNX}" --move --pack "${OUP}" "${PKG}.tar.gz"
+"${XNX}" --move --pack "${OUP}/${PRJ}" "${PKG}.tar.gz"
 
 if [[ -d "${OUP}" ]]; then
   echo "Removing the output parent directory \"${OUP}\""
