@@ -71,7 +71,7 @@ class Scanner {
       await stdin.readUtfAsString(pileup: pileup);
       count = execMultiLine('', pileup.toString());
     } else {
-      await stdin.readUtfAsLines(onRead: (params) {
+      await stdin.readUtfAsLines(onRead: (params) async {
         count += execLine('', params.currentNo, params.current!);
         return VisitResult.skip;
       });
@@ -166,7 +166,7 @@ class Scanner {
       await file.readUtfAsString(pileup: pileup);
       count += execMultiLine(filePath, pileup.toString());
     } else {
-      await file.readUtfAsLines(onRead: (params) {
+      await file.readUtfAsLines(onRead: (params) async {
         count += execLine(filePath, params.currentNo, params.current!);
         return VisitResult.skip;
       });
@@ -210,7 +210,7 @@ class Scanner {
     }
 
     if (_logger.isVerbose) {
-      _logger.verbose('...${count > 0 ? '' : 'not '} matched');
+      _logger.verbose('...${count > 0 ? '' : 'not '}matched');
     }
 
     if (!_options.isCount && !_printer.showMatchOnly) {
@@ -237,9 +237,10 @@ class Scanner {
     final lineStartCount = lineStarts.length;
     final length = content.length;
     var next = -1;
+    var start = 0;
 
-    for (var start = 0; start < length; start = next) {
-      final match = firstMatch(content, start);
+    for (; start < length; start = next) {
+      match = firstMatch(content, start);
 
       if (match == null) {
         break;
@@ -274,15 +275,13 @@ class Scanner {
       }
     }
 
+    final isFound = ((match != null) || (start > 0));
+
     if (_logger.isVerbose) {
-      _logger.verbose('...${match == null ? 'not ' : ''} matched');
+      _logger.verbose('...${isFound ? '' : 'not '}matched');
     }
 
-    if (match == null) {
-      return 0;
-    }
-
-    return 1;
+    return (isFound ? 1 : 0);
   }
 
   /// Find the start of the line in [input] before or after position [from]

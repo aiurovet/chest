@@ -11,14 +11,14 @@ environment:
 dependencies:
   async: ^2.11.0
   file: ^6.1.4
-  file_ext: ^0.6.1
+  file_ext: ^0.7.1
   get_it: ^7.2.0
   glob: ^2.0.2
-  loop_visitor: ^0.3.0
+  loop_visitor: ^0.4.0
   parse_args: ^0.13.1
   path: ^1.8.3
   thin_logger: ^0.2.0
-  utf_ext: ^0.2.2
+  utf_ext: ^0.3.0
 
 dev_dependencies:
   lints: ^2.0.1
