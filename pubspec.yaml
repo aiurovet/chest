@@ -1,25 +1,25 @@
 name: chest
 description: CHEck STrings - a tool to find files, filter strings and optionally check matches
-version: 0.1.1
+version: 0.1.2
 homepage: https://aiurovet.com/
 repository: https://github.com/aiurovet/chest/
 
 environment:
-  sdk: '>=2.19.4 <3.0.0'
+  sdk: '>=2.19.4 <4.0.0'
 
 
 dependencies:
   async: ^2.11.0
-  file: ^6.1.4
-  file_ext: ^0.7.1
+  file: ^7.0.0
+  file_ext: ^0.7.4
   get_it: ^7.2.0
   glob: ^2.0.2
-  loop_visitor: ^0.4.0
-  parse_args: ^0.13.1
+  loop_visitor: ^0.4.2
+  parse_args: ^0.13.4
   path: ^1.8.3
-  thin_logger: ^0.2.0
-  utf_ext: ^0.3.0
+  thin_logger: ^0.2.2
+  utf_ext: ^0.3.3
 
 dev_dependencies:
-  lints: ^2.0.1
+  lints: ^3.0.0
   test: ^1.24.2
