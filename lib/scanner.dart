@@ -53,7 +53,6 @@ class Scanner {
       _printer.out(count: count);
     }
 
-
     return isSuccess;
   }
 

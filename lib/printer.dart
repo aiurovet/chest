@@ -26,7 +26,8 @@ class Printer {
   /// Const: RegExp to break into fields
   ///
   static final _formatParseRE = RegExp(
-      '([^$fstrAll]*)(($fstrContent)|($fstrCount)|($fstrFileName)|($fstrLineNo)|($fstrMatchOnly)|($fstrPath))([^$fstrAll]*)', multiLine: true);
+      '([^$fstrAll]*)(($fstrContent)|($fstrCount)|($fstrFileName)|($fstrLineNo)|($fstrMatchOnly)|($fstrPath))([^$fstrAll]*)',
+      multiLine: true);
 
   /// Const: all data formatters (ex. special characters)
   ///
